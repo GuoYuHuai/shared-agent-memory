@@ -140,10 +140,13 @@ class PortableIdentityTests(unittest.TestCase):
         self.assertEqual(result['identity_stability'], 'runtime-only')
 
     def test_system_volume_is_never_external_storage(self):
-        system_root = Path(self.root.anchor)
+        # Keep the simulated Linux root and target on the same drive when the
+        # Windows runner's temporary directory and working directory differ.
+        system_root = Path('/').resolve()
+        target = system_root / 'fictional-unmounted-folder' / 'knowledge'
         with mock.patch.object(identity.platform, 'system', return_value='Linux'), mock.patch.object(identity.os.path, 'ismount', side_effect=lambda p: Path(p) == system_root):
             with self.assertRaisesRegex(identity.DeviceIdentityError, 'system volume'):
-                identity.external_mount_root(self.root)
+                identity.external_mount_root(target)
 
     def test_native_volume_probe_reports_its_actual_guarantee(self):
         # This runs the host's read-only API. It is not a removable-drive test.

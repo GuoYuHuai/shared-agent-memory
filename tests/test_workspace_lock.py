@@ -59,7 +59,7 @@ class WorkspaceLockTests(unittest.TestCase):
     def test_second_process_fails_fast_while_workspace_is_held(self):
         module = load_module()
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "AI-Knowledge"
+            root = Path(directory) / "AI Knowledge"
             path = module.lock_path(root)
             path.parent.mkdir(parents=True)
             holder = subprocess.Popen(
@@ -67,12 +67,16 @@ class WorkspaceLockTests(unittest.TestCase):
                     sys.executable,
                     "-c",
                     (
-                        "import fcntl,sys; "
-                        "h=open(sys.argv[1],'a+'); "
-                        "fcntl.flock(h.fileno(),fcntl.LOCK_EX); "
-                        "print('locked',flush=True); sys.stdin.read(1)"
+                        "import sys\n"
+                        "from pathlib import Path\n"
+                        "sys.path.insert(0, sys.argv[1])\n"
+                        "import workspace_lock\n"
+                        "with workspace_lock.acquire(Path(sys.argv[2])):\n"
+                        "    print('locked', flush=True)\n"
+                        "    sys.stdin.read(1)\n"
                     ),
-                    str(path),
+                    str(ROOT / "scripts"),
+                    str(root),
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -80,18 +84,22 @@ class WorkspaceLockTests(unittest.TestCase):
                 text=True,
             )
             try:
-                self.assertEqual(holder.stdout.readline().strip(), "locked")
+                ready = holder.stdout.readline().strip()
+                if ready != "locked":
+                    _, errors = holder.communicate(timeout=5)
+                    self.fail("lock holder did not start: %s" % errors)
                 with self.assertRaises(module.WorkspaceBusy):
                     with module.acquire(root, blocking=False):
                         self.fail("contended lock must never be acquired")
             finally:
-                if holder.stdin:
-                    holder.stdin.write("x")
-                    holder.stdin.flush()
-                holder.wait(timeout=5)
-                for stream in (holder.stdin, holder.stdout, holder.stderr):
-                    if stream:
-                        stream.close()
+                try:
+                    holder.communicate("x" if holder.poll() is None else None, timeout=5)
+                except subprocess.TimeoutExpired:
+                    holder.kill()
+                    holder.communicate()
+            self.assertEqual(holder.returncode, 0)
+            with module.acquire(root, blocking=False):
+                pass
 
 
 class StorageLockTests(unittest.TestCase):

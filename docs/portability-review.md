@@ -14,6 +14,7 @@ against current code before changing it.
 | Non-macOS volume identities are only device numbers | Linux filesystem UUID and Windows volume GUID are used when available. Fallback is explicitly marked runtime-only. These identifiers are not promised to match across operating systems. |
 | All tests ran only on macOS | Ubuntu hosted runs already existed. Windows has been added to the workflow; see Actions and the acceptance report for results rather than treating the workflow file as proof. |
 | Two misplaced docstrings and unused variables/imports | Corrected. The earlier capture catch-and-reraise had already been replaced by explicit partial-save recovery in 0.2.1. |
+| Windows instruction files differ from their installation receipts | Found in the hosted Windows run. Installation now writes the exact hashed UTF-8 block, preserves surrounding user bytes and accepts line-ending conversion alone when checking ownership. |
 | GitHub installation mode duplicates local-with-repository | Kept as a compatibility alias and explained in CLI help. Normal setup uses local mode plus an optional repository. |
 
 ## Immutable writes on different filesystems

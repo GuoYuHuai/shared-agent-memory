@@ -94,40 +94,38 @@ class KnowledgeBaseCLITests(unittest.TestCase):
     def init_history(self, events=()):
         database = self.root / ".kb-data" / "history.sqlite"
         database.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(str(database))
-        connection.executescript(EVENTS_SCHEMA.read_text(encoding="utf-8"))
-        now = dt.datetime.now(dt.timezone.utc).isoformat()
-        for index, event in enumerate(events, 1):
-            connection.execute(
-                """
-                INSERT INTO source_events(
-                    event_hash, source_device_id, source, source_path,
-                    source_offset, source_line, thread_id, event_id,
-                    parent_event_id, role, event_type, event_timestamp,
-                    cwd, content, raw_json, ingested_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event.get("event_hash", "history-hash-%d" % index),
-                    event.get("source_device_id", "history-device"),
-                    event.get("source", "codex"),
-                    event.get("source_path", "/history/source-%d.jsonl" % index),
-                    index * 100,
-                    index,
-                    event.get("thread_id", "thread-history"),
-                    event.get("event_id", "message-%d" % index),
-                    None,
-                    event.get("role", "user"),
-                    event.get("event_type", "message"),
-                    event.get("event_timestamp", now),
-                    event.get("cwd", "/projects/example"),
-                    event["content"],
-                    json.dumps({"content": event["content"]}),
-                    event.get("ingested_at", now),
-                ),
-            )
-        connection.commit()
-        connection.close()
+        with closing(sqlite3.connect(str(database))) as connection, connection:
+            connection.executescript(EVENTS_SCHEMA.read_text(encoding="utf-8"))
+            now = dt.datetime.now(dt.timezone.utc).isoformat()
+            for index, event in enumerate(events, 1):
+                connection.execute(
+                    """
+                    INSERT INTO source_events(
+                        event_hash, source_device_id, source, source_path,
+                        source_offset, source_line, thread_id, event_id,
+                        parent_event_id, role, event_type, event_timestamp,
+                        cwd, content, raw_json, ingested_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.get("event_hash", "history-hash-%d" % index),
+                        event.get("source_device_id", "history-device"),
+                        event.get("source", "codex"),
+                        event.get("source_path", "/history/source-%d.jsonl" % index),
+                        index * 100,
+                        index,
+                        event.get("thread_id", "thread-history"),
+                        event.get("event_id", "message-%d" % index),
+                        None,
+                        event.get("role", "user"),
+                        event.get("event_type", "message"),
+                        event.get("event_timestamp", now),
+                        event.get("cwd", "/projects/example"),
+                        event["content"],
+                        json.dumps({"content": event["content"]}),
+                        event.get("ingested_at", now),
+                    ),
+                )
         return database
 
     def capture_rotated_key(self, event_id, statement, secret):
@@ -2507,12 +2505,10 @@ class KnowledgeBaseCLITests(unittest.TestCase):
             "evt-fallback-original",
         )
 
-        database = sqlite3.connect(str(self.root / ".kb-data" / "knowledge.sqlite"))
-        database.execute(
-            "UPDATE kb_meta SET value='obsolete' WHERE key='index_projection_version'"
-        )
-        database.commit()
-        database.close()
+        with closing(sqlite3.connect(str(self.root / ".kb-data" / "knowledge.sqlite"))) as database, database:
+            database.execute(
+                "UPDATE kb_meta SET value='obsolete' WHERE key='index_projection_version'"
+            )
         structural = module.update_index(self.root)
         self.assertEqual(structural["mode"], "full-rebuild")
         self.assertEqual(structural["fallback_reason"], "projection-version")
@@ -2535,17 +2531,15 @@ class KnowledgeBaseCLITests(unittest.TestCase):
         self.json_cli("init")
 
         database_path = self.root / ".kb-data" / "knowledge.sqlite"
-        connection = sqlite3.connect(str(database_path))
-        connection.execute(
-            "UPDATE history_events SET is_credential=1 WHERE event_id=?",
-            (event["id"],),
-        )
-        connection.execute(
-            "UPDATE kb_meta SET value='obsolete-classifier' "
-            "WHERE key='index_projection_version'"
-        )
-        connection.commit()
-        connection.close()
+        with closing(sqlite3.connect(str(database_path))) as connection, connection:
+            connection.execute(
+                "UPDATE history_events SET is_credential=1 WHERE event_id=?",
+                (event["id"],),
+            )
+            connection.execute(
+                "UPDATE kb_meta SET value='obsolete-classifier' "
+                "WHERE key='index_projection_version'"
+            )
 
         rebuilt = load_kb_module().update_index(self.root)
         self.assertEqual(rebuilt["mode"], "full-rebuild")
@@ -3073,7 +3067,7 @@ class KnowledgeBaseCLITests(unittest.TestCase):
             ]
         )
         database = self.root / ".kb-data" / "history.sqlite"
-        with sqlite3.connect(str(database)) as connection:
+        with closing(sqlite3.connect(str(database))) as connection, connection:
             connection.executemany(
                 """
                 INSERT INTO source_event_user_relations(

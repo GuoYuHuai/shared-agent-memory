@@ -10,7 +10,7 @@
     ".gitignore": "5b673995ff74b11e1ae4ab31d0671ab1392f8ef48bfc353ca5188320ec5146c9",
     "AGENTS.md": "4e2e9c4d5f80d30780bf329c7dcee4533709b1867ee508b1e3d7bb2e3624841a",
     "BOOTSTRAP.md": "176c8c56fe02ff27bb71303ddc6ece6ac84f407fbc329c9679bbd8803d039150",
-    "CHANGELOG.md": "a3468e5c34283edf49d08b810ca4a626f07656fbc497d249782fee79b965d208",
+    "CHANGELOG.md": "e7183bd457850257608409b6c8594ee80d235f58037df47e4c0147f117161d2e",
     "CONTRIBUTING.md": "427704fb0ac092b97a83506aebc9d1e6c94843cf37dfd6c3adfaa79e5310e6ac",
     "LICENSE": "01888d84befbcd93a20015ec2dfbaef2a208cac95d0d6b15ae92f3394457f5a6",
     "MANIFEST.json": "6fece4f492dda51a5865b225f966c44bb14aa398806d4e1c8b42271db440679e",
@@ -35,7 +35,7 @@
     "docs/github.md": "9ff5c46ea1624aff2e80f11e8254a473ee836fc9e9b32258b1c0b65660188a0c",
     "docs/local-storage.md": "7c676ed95a2040f6a613c9300b30994b9633b6f65357e7775ee2ad56357d100c",
     "docs/p0-review.md": "1d37e3457c96684c38f5e4718f7829e8ab780bb7bc77f551b7dc306ea08c9fc3",
-    "docs/portability-review.md": "42eab2f3f81a7999a945f20d64bd682d7597c7f92e32fd3d1d89684f42b2821e",
+    "docs/portability-review.md": "d5fc1b8bf0feda887492d09a0cfb826b2f86ece816fadd3ac331567676641c69",
     "docs/protocol.md": "0b30807fba2e4ed622be9346979cc4d972c5dace5c8b87050c6ccc741f15375d",
     "docs/reliability.md": "a3587faff18965df74e3b03e2695de07a6479a83888ed4641721d42facd69403",
     "docs/retrieval.md": "98db968fc83bb67f0dc1c551d9fdefec5eeeb8e53716169e77b48ced1931d891",
@@ -97,13 +97,13 @@
     "tests/test_ingest_history.py": "07a37e5f478366845e2f5052865752fa0b4777f792c231627bd62147734b2621",
     "tests/test_install_public.py": "39f994a026b1ebcec3c2b3390b31dee3e95f6164fad3a54a1d64b03a1fbf956f",
     "tests/test_instruction_link.py": "34953d27a379916724aca964c28690818ab498cf9f0219762c4ab1e928f6175a",
-    "tests/test_kb.py": "7484309668e6a6b8369b4349a5db01f4ffe806eef727446bf303d1f56a4d6d9a",
+    "tests/test_kb.py": "1f9647ef002be4c922fcfad161dab00e30b114d028e13971a60acc7d49fe2e3b",
     "tests/test_local_only.py": "b7bc7a2410c853f2974b51f8ee9722d48dfef1b89efb365a99e3b155db5fa25e",
-    "tests/test_portable_identity.py": "2713cf78d7bf5e747ee6bedf3ede2d9f5eb3d0a810865251f886c77163b9ed18",
-    "tests/test_public_automation.py": "4a774532aab44c039e81ad387aa74f256db68615b1593f892877162fbb3f5947",
+    "tests/test_portable_identity.py": "988fce3ee377c2d18857b3917984b40abb0fd2f6b7caf1c10c010f79c0a8f935",
+    "tests/test_public_automation.py": "5fb82a32a980d25b4604226947a7133db38425e96e8792ebcc16f0b19a2a5004",
     "tests/test_record_schema.py": "72491e73ce74dafd455b25c4739b9d7b5923106888920b931fd81cd813c4a3b8",
     "tests/test_retrieval_public.py": "410f0a45275742fda18fe238f439bf252818538a62f0ba1d07270ca4462fce18",
     "tests/test_semantic_batches.py": "55492cb42c8a8b3992997a980325eff151f8e8f586f1298be3b56bfa9d6fed5e",
-    "tests/test_workspace_lock.py": "f5193e5a8166a0d39108a4c73bcff9a47f33f51444b375c048543a973e669110"
+    "tests/test_workspace_lock.py": "239326f48af4247da77716e1e80771670ad093353535c9a9397bc17c65838b42"
   }
 }

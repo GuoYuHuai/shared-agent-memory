@@ -132,7 +132,11 @@ class PublicAutomationTests(unittest.TestCase):
 
     def test_registration_failure_is_not_registered(self):
         failed = subprocess.CompletedProcess([], 1, '', '')
-        with mock.patch.object(automation.platform, 'system', return_value='Darwin'), mock.patch.object(automation, 'launchctl', return_value=failed):
+        with (
+            mock.patch.object(automation.platform, 'system', return_value='Darwin'),
+            mock.patch.object(automation.os, 'getuid', return_value=501, create=True),
+            mock.patch.object(automation, 'launchctl', return_value=failed),
+        ):
             state = automation.register(self.root, 'health', 60)
         self.assertEqual(state['registration'], 'failed')
         self.assertEqual(state['trial'], 'not-run')
@@ -161,7 +165,11 @@ class PublicAutomationTests(unittest.TestCase):
         path.write_bytes(plistlib.dumps({"Label": automation.label(self.root, "health"), "StartInterval": 1800,
             "ProgramArguments": [sys.executable, str(Path(automation.__file__).resolve()), "--root", str(self.root), "run", "health"]}))
         before = (automation.directory(self.root) / "health.json").read_bytes()
-        with mock.patch.object(automation.platform, "system", return_value="Darwin"), mock.patch.object(automation, "launchctl", return_value=subprocess.CompletedProcess([], 0, "", "")):
+        with (
+            mock.patch.object(automation.platform, "system", return_value="Darwin"),
+            mock.patch.object(automation.os, "getuid", return_value=501, create=True),
+            mock.patch.object(automation, "launchctl", return_value=subprocess.CompletedProcess([], 0, "", "")),
+        ):
             result = automation.register(self.root, "health", 3600)
         self.assertFalse(result["ok"])
         self.assertEqual(result["reason"], "interval-change-requires-disable-and-register")

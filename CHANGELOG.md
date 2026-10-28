@@ -8,6 +8,7 @@
 - Use XDG state paths for new Linux installations, retain existing device identities, and share mount discovery between installation and cold-storage validation.
 - Add Linux filesystem UUID and Windows volume GUID bindings, with explicit runtime-only fallback when a persistent identity is unavailable.
 - Add Windows to hosted checks, clarify history-parser boundaries, and fix misplaced docstrings and unused code.
+- Preserve user instruction bytes during upgrades and removal; accept LF/CRLF conversion within a verified managed block without accepting other edits.
 
 ## 0.2.1 experimental candidate — 2026-10-28
 
