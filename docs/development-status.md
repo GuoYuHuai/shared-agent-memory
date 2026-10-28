@@ -1,34 +1,25 @@
-# 开发状态与后续接续
+# Current capabilities and ongoing work
 
-当前版本目标：`0.1.0-experimental`。项目公开入口为 [GuoYuHuai/agent-knowledge](https://github.com/GuoYuHuai/agent-knowledge)；发布状态、实际验证与未完成项以[验收记录](acceptance.md)及仓库当前状态为准。
+Agent Knowledge is experimental. The local command interface supports saving,
+retrieving and correcting knowledge, connecting a host instruction file, and
+optionally synchronizing through a private GitHub repository.
 
-## 当前产品方向
+Start with [BOOTSTRAP](../BOOTSTRAP.md), the [local storage guide](local-storage.md)
+or the [short walkthrough](demo.md). Agents with GitHub tools but no local command
+execution can use the [connector workflow](github.md).
 
-开源的是一套已经用于日常工作的知识内核：让 Agent 复用背景、精确配置、决定、偏好和习惯，减少重复解释与重新调查。工作中主动捕获、用户一句话、可选定时维护是三个平等入口。定时任务暂停，不影响前台检索和记录；节省 token 不是产品目标或发布门槛。
+The core supports source references, exact values, scoped retrieval, retained
+correction history and explicit freshness information. Historical imports and
+background maintenance are optional and disabled in a new installation.
 
-默认采用轻量方式，只提炼和保存当前工作中值得复用的知识，不自动全量回溯、归档原始历史或建立覆盖全部历史的大型索引。用户有需要时，与 Agent 确定来源范围、存储条件和维护方式，再启用历史采集或更大规模的库。不把作者个人库的体量和设备工程作为新用户门槛，也不把开发缓存算作知识大小。
+Areas for further work include:
 
-首台与新增设备按现有知识、实际能力和用户选择接入。允许已有私有 GitHub 库、纯本地无同步或移动盘；不按品牌白名单限制。当前本地工具仍依赖 Python 和 Git，但不要求 GitHub 账号或远端。数据、来源和自定义政策必须保留。
+- Verifying instruction discovery in new chats across more hosts and operating systems.
+- Making migration from existing note collections easier while preserving their sources.
+- Testing synchronization and removable storage between physical devices.
+- Improving retrieval across different ways of expressing the same question.
+- Extending optional history import and maintenance with clear progress and recovery.
 
-## 阶段成果和验证边界
-
-| 阶段 | 已有成果 | 后续边界 |
-| --- | --- | --- |
-| P0 | 最新源代码复核、选择性导出、保留可靠性机制、独立干净历史 | 私有来源证据留在公共包外 |
-| P1 | 通用入口、能力路由、共享 Skill、本地与无 CLI GitHub 参考路径 | 首台/新增设备与存储模式持续按真实环境验证；原生新会话加载不能由写入文件代替 |
-| P2 | 生命周期、来源时间、作用域别名、冲突处理、有界新鲜度检查及固定虚构题集 | 更多自然语言表达、真实跨产品和跨设备使用由实际案例扩充 |
-| P3 | 通用提案契约、既有主机验证/事务恢复、预算与运行回执、确定性后台参考 | 后台模型、跨节点审查、自动长事件拆分按需要补充；均不是基础使用前提 |
-| P4 | 所有权清单、同 schema 更新/回滚、未来 schema 写入保护、保留数据的卸载与发布资料 | 通用数据迁移与更多实际宿主/系统适配逐步完善 |
-
-已补充纯本地与移动盘模式、默认轻量配置及现有目录接续，并为设备、路径和来源引用增加回归测试。实际验证结果与物理设备待验证范围见验收记录；不将文档或模拟环境测试当作实机兼容认证。
-
-## 社区可以继续完善的工作
-
-1. 使用真实 GitHub 连接器验证完整分页、投影落后、未固定版本读取，以及候选/更正的远程一致性。
-2. 在新的 Codex 会话和另一种实际 Agent 中复用同一知识，记录加载和读写证据。
-3. 验证 Windows、Linux、移动盘和不同宿主的安装、重复安装、离线恢复与退出。
-4. 按有需要的用户场景增加历史来源适配、可追溯长事件读取与规模扩展；保留轻量默认。
-5. 为可选后台任务增加可靠运行证据、故障恢复与实际耗时/用量记录，帮助使用者设定预算；不以节省比例作为上线要求。
-6. 数据 schema 确需变化时，提供包含备份、恢复与旧客户端行为的迁移测试。
-
-维护者可以在以后明确安排社区 Issue/PR 的定时审计、采纳或合并工作；本次文档调整不创建这些调度。社区贡献无需等待所有 Agent 完成认证。使用虚构样例、保留证据，并准确标注未验证范围。
+See [compatibility](compatibility.md) for current environment coverage and
+[acceptance](acceptance.md) for executed checks. Contributions should include a
+small reproducible example and describe what was actually tested.

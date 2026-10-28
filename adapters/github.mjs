@@ -48,7 +48,11 @@ export class GithubKnowledge {
       for(const path of listing.paths.filter(p=>/^ledger\/.*\.jsonl?$/.test(p))) {
         const file=await this.connector.read(this.repository,ref,path);
         if(!file || typeof file.content!=='string') return {complete:false,reason:'file-unreadable',events:[]};
-        const rows=path.endsWith('.jsonl') ? file.content.split('\n').filter(Boolean).map(JSON.parse) : [JSON.parse(file.content)];
+        const parsed=path.endsWith('.jsonl') ? file.content.split('\n').filter(Boolean).map(JSON.parse) : [JSON.parse(file.content)];
+        // Local atomic corrections publish [replacement, supersession] together.
+        // Match the core JSON-array and {events:[...]} ledger containers.
+        const rows=parsed.flatMap(value=>Array.isArray(value)?value:
+          value && Array.isArray(value.events)?value.events:[value]);
         for(const e of rows) {
           validateEvent(e);
           if(seen.has(e.id) && seen.get(e.id)!==stable(e)) throw Error('conflicting event identity: '+e.id);

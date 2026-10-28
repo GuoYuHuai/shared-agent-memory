@@ -1,17 +1,46 @@
-# Codex reference mapping
+# Use your knowledge in a Codex project
 
-Probe actual local/GitHub tools. Use the generic installer to write the owned AGENTS.md
-block in the knowledge project. For another project, add an equivalent explicitly owned
-rule pointing to this same knowledge root; do not make a second disconnected database.
-Native skill folders may be placed in a verified project `.agents/skills` directory after
-checking for existing same-name content; this experimental installer does not overwrite
-global skills. `skills/` contains portable instruction sources.
+Follow [BOOTSTRAP](../BOOTSTRAP.md) to connect an existing knowledge directory or create
+one. Check the tools actually available in this session; GitHub-only access follows
+[the shared GitHub workflow](../docs/github.md).
 
-Official guidance: [Customization and discovery](https://learn.chatgpt.com/docs/customization/overview#skills).
-Writing a rule is file-level installation evidence. Verify a new session actually discovers
-it before marking persistent-instructions verified. Hooks and scheduler capabilities are
-independent probes. The semantic CLI runner is optional; configure the user's available
-model and authentication. No new paid API is required for the basic knowledge path.
+For local execution, connect the instruction file of the project where you work:
 
-This release was developed through Codex on macOS. New-session activation, native Codex
-scheduling and a real semantic model invocation remain unverified for the candidate.
+```sh
+python3 scripts/ak.py --root "/path/to/knowledge" connect --instructions "/path/to/project/AGENTS.md"
+```
+
+Run this from the tool directory, using the real knowledge and project paths. The command
+adds one owned block pointing to the existing knowledge. It preserves other instructions,
+creates a missing instruction file within an existing project directory, and can be run
+again without duplicating the block. It does not install global rules or create another
+knowledge base. The same command accepts another host's actual instruction file; there is
+no product-name check.
+
+The block directs the Agent to read the knowledge policy, retrieve before repeating
+questions, record reusable facts and corrections, and sync only when configured and
+authorized. It contains routing paths rather than copies of private facts or values.
+
+Start a fresh session in that project and verify that it finds the rule and retrieves a
+known fictional record. File installation and new-session discovery are separate checks;
+the connection command reports activation as unverified. If the host does not load project
+instructions, use its supported rule surface or report current-session access.
+
+To remove the connection while keeping the project instructions and knowledge:
+
+```sh
+python3 scripts/ak.py --root "/path/to/knowledge" disconnect --instructions "/path/to/project/AGENTS.md"
+```
+
+Disconnect before moving the knowledge/tool directory or uninstalling. If a managed block
+has been edited, the command stops and names its receipt: move your custom text outside
+the markers, restore the recorded block, then disconnect and reconnect. A connection from
+another device or location is not proof of activation here.
+
+Portable Skill sources remain in `skills/` for hosts that support them. Check existing
+same-name content before installing a Skill. Scheduling and background models are optional
+and require their own capability checks; neither is needed for basic recall and capture.
+
+See the [compatibility record](../docs/compatibility.md) for tested environments and
+[official customization guidance](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+for host-specific discovery behavior.

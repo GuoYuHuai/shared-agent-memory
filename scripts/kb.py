@@ -915,6 +915,7 @@ LIFECYCLE_STATUS_RANKS = {
     "archived": 2,
     "deprecated": 2,
     "historical-snapshot": 2,
+    "lifecycle-event": 2,
     "inactive": 2,
     "replaced": 2,
     "retired": 2,
@@ -1111,7 +1112,9 @@ def annotate_lifecycle(
         effective = parse_time(item.get("valid_from"))
         invalid_time = any(item.get(field) and parse_time(item[field]) is None
                            for field in ("source_time", "observed_at", "confirmed_at", "expires_at", "valid_from"))
-        if item.get("source_available") is False:
+        if item.get("kind") in LIFECYCLE_KINDS:
+            item["effective_status"] = "lifecycle-event"
+        elif item.get("source_available") is False:
             item["effective_status"] = "source-unavailable"
         elif item.get("projection_conflict"):
             item["effective_status"] = "disputed"
@@ -1142,12 +1145,13 @@ def annotate_lifecycle(
                 item["conflicts_with"] = [other for other in ids if other != item["id"]]
     for item in results:
         item["current_eligible"] = (lifecycle_status_rank(item) == 0
-                                    and item.get("result_type") != "source-history")
+                                    and item.get("result_type") != "source-history"
+                                    and item.get("kind") not in LIFECYCLE_KINDS)
 
 
 def lifecycle_status_rank(item: Dict[str, Any]) -> int:
     effective = clean_scalar(item.get("effective_status")).strip().lower()
-    if effective in ("expired", "not-yet-effective", "invalid-time", "source-unavailable", "disputed", "conflict"):
+    if effective in ("expired", "not-yet-effective", "invalid-time", "source-unavailable", "disputed", "conflict", "lifecycle-event"):
         return LIFECYCLE_STATUS_RANKS[effective]
     state = clean_scalar(item.get("candidate_state")).strip().lower()
     if state == "rejected":
@@ -3797,6 +3801,10 @@ def search_hot_locator_events(
         if args.kind:
             conditions.append("kind=?")
             parameters.append(args.kind)
+        else:
+            lifecycle_kinds = sorted(LIFECYCLE_KINDS)
+            conditions.append("kind NOT IN (%s)" % ",".join("?" for _ in lifecycle_kinds))
+            parameters.extend(lifecycle_kinds)
         if args.scope:
             conditions.append("scope=?")
             parameters.append(args.scope)
@@ -5238,6 +5246,8 @@ def search_hot_layer(
     results: List[Dict[str, Any]] = []
     for path in hot_canonical_files(root):
         document = canonical_document(root, path)
+        if not args.kind and document["kind"] in LIFECYCLE_KINDS:
+            continue
         if args.kind and document["kind"] != args.kind:
             continue
         if args.scope and document["scope"] != args.scope:
@@ -5365,6 +5375,12 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
     if args.kind:
         filters.append("d.kind = ?")
         parameters.append(args.kind)
+    else:
+        # Relationship/review events determine lifecycle but are not facts.
+        # Filter before the candidate limit, and permit explicit --kind audit.
+        lifecycle_kinds = sorted(LIFECYCLE_KINDS)
+        filters.append("d.kind NOT IN (%s)" % ",".join("?" for _ in lifecycle_kinds))
+        parameters.extend(lifecycle_kinds)
     if args.scope:
         filters.append("d.scope = ?")
         parameters.append(args.scope)
@@ -5623,6 +5639,8 @@ def search(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
     report["current_count"] = sum(bool(item.get("current_eligible")) for item in report["results"])
     report["conclusion"] = "current-evidence" if report["current_count"] else (
         "current-value-unconfirmed" if report["count"] else "not-found-in-local-snapshot")
+    if args.kind in LIFECYCLE_KINDS and report["count"]:
+        report["conclusion"] = "lifecycle-audit-evidence"
     report["coverage"] = "local-snapshot; remote freshness and unshared history not established"
     report["alias_queries_attempted"] = len(queries)
     report["conflict_identity_coverage"] = "bounded-to-20-identities-and-1000-siblings"

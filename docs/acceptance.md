@@ -1,11 +1,11 @@
 # Experimental candidate acceptance — 2026-10-28
 
-Version: 0.1.0-experimental. This is a reviewable release candidate, not a universal
+Version: 0.2.0-experimental. This is a reviewable release candidate, not a universal
 compatibility certification. The independent public repository is
 [GuoYuHuai/agent-knowledge](https://github.com/GuoYuHuai/agent-knowledge).
-The original private knowledge repository remains private and is not its Git ancestor.
+Public history contains tool sources, documentation and fictional fixtures only.
 
-## Executed checks
+## Earlier 0.1 checks retained as evidence
 
 - Full Python suite: **317 tests run, 316 passed, 1 platform skip**, 106.908 seconds.
   Command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -q`.
@@ -42,7 +42,7 @@ not establish hosted CI success.
 | A03 | Contract: read-only retrieval and explicitly unsaved proposals. |
 | A04 | Live connector fictional write/readback without CLI; no local installation claimed. |
 | A05 | Adapter contract enumerates raw ledger independently of indexes. Live fixture index discovery passed; exhaustive live pending-event enumeration is unverified. |
-| A06 | Owned rule file written and preserved. Fresh-session automatic recognition remains unverified. |
+| A06 | Owned rule files are connected and preserved; a new Codex CLI session discovered the fixture and returned its corrected record. Other native hosts and lifecycle hooks remain unverified. |
 | A07 | Independent connector Agent read the same fixture/source. Different native products remain unverified. |
 | A08 | Real Git clone between two directories; two physical devices remain unverified. |
 | A09 | Local and live connector correction/source readback passed. |
@@ -81,8 +81,8 @@ does not replace runtime testing or establish compatibility beyond the evidence 
 ## Remaining release scope
 
 Foreground generic/local and GitHub contracts are usable experimental paths. Claude,
-Doubao Desktop, WorkBuddy, fresh-session persistence, Windows/Linux installation,
-two physical devices, native host scheduling, and real semantic-model curation need live
+Doubao Desktop, WorkBuddy, desktop-host persistence, Windows installation,
+Linux desktop integration, two physical devices, native host scheduling, and real semantic-model curation need live
 validation. Remote canonical Markdown/candidate-resolution parity, distributed maintenance
 leases, automatic oversized-event splitting and schema migration remain explicit follow-up
 work. Weekly semantic knowledge review is a pending workflow, not an implemented autonomous
@@ -106,3 +106,42 @@ copied freshness timestamp could be trusted on another device. The implementatio
 checks mounted-volume evidence and binds retrieval freshness to device, knowledge root,
 repository, origin, branch and snapshot. Directory-copy/device fixtures cover reattachment;
 physical disk and cross-device validation remain explicitly pending.
+
+## 0.2 usability and reliability checks
+
+The final local full run executed **415 tests: 414 passed and 1 platform skip** in
+134.740 seconds. Two additional uninstall boundary cases were verified in the
+complete 27-case installer suite; all passed. The final source contains 417 Python
+tests. Node connector contracts and the updated temporary two-directory
+demonstration also passed. Hosted results are available in GitHub Actions for the
+corresponding commit.
+
+- The everyday CLI covers initialization, saving, foreground recall, correction,
+  instruction connection, local status and optional synchronization. Fixtures include
+  spaces and Chinese in paths, external ledger additions, exact CRLF values,
+  unsupported schemas, broken connections and missing storage.
+- A correction publishes its fact and supersession together in one immutable file.
+  Tests cover retries, exact-value requirements, interrupted publication, projection
+  recovery, ID conflicts and Python/GitHub container compatibility.
+- Real local Git fixtures cover adding sync, empty-remote first push, unrelated
+  histories, races, configuration rollback, missing author identity and preservation
+  of unrelated staged work. Repository privacy is injected in these fixtures; this
+  does not claim a new live GitHub first-push or physical-device trial.
+- A new ephemeral Codex CLI session ran with memories disabled and user configuration
+  ignored. Its prompt asked for the fictional Atlas preview port without supplying
+  a value or knowledge path. It discovered the connected project AGENTS.md, read the
+  knowledge files and returned **4311**, the replacement record ID, and source
+  `fictional:port-change`. It read the ledger directly; it did not exercise CLI recall
+  or prove any other host's behavior. The fixture was removed afterward, and no real
+  installation's activation receipt was changed.
+- An independent read-only source review used a new context, disabled memories and
+  disabled project/global instruction discovery. It identified stale instruction
+  blocks after a same-path tool upgrade. Repair and interruption tests cover that
+  finding. A follow-up review identified interrupted disconnect and uninstall
+  finalization. Both now persist recovery state before changing rules and have
+  failure-injection coverage. Integration tests also cover changing tool paths
+  while connected and missing-storage rejection.
+
+The English and Chinese READMEs expose the same setup, storage and support boundaries.
+The comparison in `docs/choosing.md` uses other projects' official documentation;
+no comparative performance, popularity or cost advantage is claimed.

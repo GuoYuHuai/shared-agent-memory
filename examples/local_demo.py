@@ -13,20 +13,20 @@ def command(args,cwd=None):
     if result.returncode:raise RuntimeError(result.stdout+result.stderr)
     return result.stdout
 def cli(root,*args):
-    return json.loads(command([sys.executable,str(TOOL/'scripts/kb.py'),'--root',str(root),*args,'--json']))
+    return json.loads(command([sys.executable,str(TOOL/'scripts/ak.py'),'--root',str(root),'--json',*args]))
 def main():
     with tempfile.TemporaryDirectory(prefix='knowledge-demo-') as directory:
         a=Path(directory)/'知识 A'; b=Path(directory)/'Knowledge B'
-        command([sys.executable,str(TOOL/'scripts/install.py'),'--root',str(a),'--repository','example/private-knowledge'])
-        for id_,color in [('theme-old','blue'),('theme-new','green')]:
-            cli(a,'capture','--id',id_,'--kind','fact','--scope','garden','--statement','theme '+color,
-                '--source','fictional:demo-user','--authority','user-stated','--source-device-id','demo-device')
-        cli(a,'supersede','--old-id','theme-old','--new-id','theme-new','--source','fictional:demo-correction')
-        command(['git','add','ledger'],a)
-        command(['git','-c','user.name=Demo','-c','user.email=demo@example.test','commit','-m','Fictional facts'],a)
+        cli(a,'init')
+        cli(a,'remember','theme blue','--id','theme-old','--scope','garden',
+            '--source','fictional:demo-user')
+        corrected=cli(a,'correct','theme-old','theme green','--source','fictional:demo-correction')
+        cli(a,'sync')
         command(['git','clone',str(a),str(b)])
-        report=json.loads(command([sys.executable,str(TOOL/'scripts/retrieve.py'),'--root',str(b),'theme','--scope','garden','--offline']))
-        assert report['results'][0]['id']=='theme-new',report
+        command(['git','remote','remove','origin'],b)
+        cli(b,'init')
+        report=cli(b,'recall','theme','--scope','garden','--offline')
+        assert report['results'][0]['id']==corrected['id'],report
         assert not (b/'.kb-data').exists()
         print(json.dumps({'ok':True,'coverage':'one machine, two directories, real local Git clone',
             'current_id':report['results'][0]['id'],'source':report['results'][0].get('source'),

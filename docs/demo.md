@@ -1,89 +1,68 @@
-# Reproducible demonstration and video outline
+# Try a complete memory workflow
 
-Start with fictional facts in a disposable local knowledge directory. A GitHub account,
-remote, scheduler or historical archive is not needed for the basic demonstration.
-Optional scenes show shared GitHub knowledge, removable storage or background work
-only when those paths are available and actually chosen.
+Use a new demonstration directory and fictional information. The local walkthrough
+needs Python and Git; remote sync and background tasks are optional. Run the
+commands from the tool checkout and replace the sample paths.
 
-Say whether A/B mean two directories on one machine, two independent Agents or two
-physical devices. A removable mode flag or fixture directory does not establish a
-physical-disk handoff. Show the version and evidence appropriate to the claim.
-
-## Scene 1: give the Agent the link
-
-Give Agent A the public repository URL and ask it to help connect the knowledge workflow.
-It reads BOOTSTRAP.md, finds existing knowledge first and chooses a usable path.
-For this basic demonstration it can initialize a new local directory without a remote:
+## Save a preference
 
 ```sh
-python3 scripts/install.py --root "/path/to/demo-knowledge" --mode local
+python3 scripts/ak.py --root "/path/to/demo-knowledge" init
+python3 scripts/ak.py --root "/path/to/demo-knowledge" remember "Demo status reports use concise paragraphs." --source fictional:demo-session:1 --scope project:demo --id demo-preference
+python3 scripts/ak.py --root "/path/to/demo-knowledge" recall "status reports" --scope project:demo
 ```
 
-Use an actual new or recognized demo directory. See [BOOTSTRAP.md](../BOOTSTRAP.md)
-and [local storage](local-storage.md) for installation and storage selection. Show that
-history backfill and background model work have not been enabled by default.
+Check that the result contains the preference, its record ID and its source.
+You can also ask your Agent: “For project Demo, remember that status reports use
+concise paragraphs.”
 
-## Scene 2: one sentence, saved and reusable
-
-Tell A:
-
-> For project Demo, status reports use concise paragraphs. Remember this preference.
-
-Use stable ID `demo-preference-v1`, scope `project:demo`, authority `user-stated` and
-source `user:demo-session:1`. Local reference:
+## Correct it
 
 ```sh
-python3 scripts/kb.py --root "/path/to/demo-knowledge" capture --id demo-preference-v1 --kind preference --scope project:demo --statement "For project Demo, status reports use concise paragraphs." --source "user:demo-session:1" --authority user-stated --json
-python3 scripts/kb.py --root "/path/to/demo-knowledge" search "status reports" --scope project:demo --json
+python3 scripts/ak.py --root "/path/to/demo-knowledge" correct demo-preference "Demo status reports use a short table." --source fictional:demo-session:2
+python3 scripts/ak.py --root "/path/to/demo-knowledge" recall "status reports" --scope project:demo
 ```
 
-Read back the saved event and cite its ID and source. Later ask for a Demo status report
-without restating the preference; show the Agent retrieving it before working.
-In a normal task, the Agent should also capture a new reusable fact under the policy
-without requiring the extra “remember” phrase. These use the same record path, not
-separate memory systems. A written rule does not prove an automatic lifecycle hook.
+The current answer should use a short table. The old preference and its source
+remain available in the record history. Copy the new ID returned by `correct`
+if you want to correct that record again.
 
-## Scene 3: correct the preference
-
-Tell A:
-
-> Change that preference: Demo status reports should use a short table.
-
-Create the corrected record and explicit relationship:
+For structured output, place `--json` before the command:
 
 ```sh
-python3 scripts/kb.py --root "/path/to/demo-knowledge" capture --id demo-preference-v2 --kind preference --scope project:demo --statement "For project Demo, status reports use a short table." --source "user:demo-session:2" --authority user-stated --json
-python3 scripts/kb.py --root "/path/to/demo-knowledge" supersede --old-id demo-preference-v1 --new-id demo-preference-v2 --source "user:demo-session:2" --json
-python3 scripts/kb.py --root "/path/to/demo-knowledge" search "status reports" --scope project:demo --json
+python3 scripts/ak.py --root "/path/to/demo-knowledge" --json recall "status reports" --scope project:demo
 ```
 
-Show the new current record and the retained old source. Then ask an unrelated question
-with no knowledge record. Show the scoped search and honest unknown result; do not invent
-an answer or interpret incomplete coverage as absence. Basic local use is complete here.
+## Continue in a new chat
 
-## Optional scene: another Agent or device
+Find the instruction file your Agent actually reads for the working project.
+If that file is `AGENTS.md`, connect it like this:
 
-For GitHub sharing, connect the user's own private repository and verify its identity,
-permissions and visibility. After authorized sync, B retrieves the same record ID and
-source. Correct on A and verify propagation to B. Report local save, remote commit,
-discovery and cross-product/device observation separately. With connector tools only,
-follow [docs/github.md](github.md), including snapshot checks and unprojected-event discovery.
+```sh
+python3 scripts/ak.py --root "/path/to/demo-knowledge" connect --instructions "/path/to/work-project/AGENTS.md"
+python3 scripts/ak.py --root "/path/to/demo-knowledge" status
+```
 
-For removable storage, use the actual mounted knowledge root and verify it on the next
-device. Do not claim this physical scenario from a directory-only test. If it has not been
-performed, label the scene as a procedure awaiting validation, not a successful demo.
+Open a new chat in that project's scope and ask: “How should I format a Demo
+status report?” Do not include the answer in your question. Check that the Agent
+retrieves the corrected preference and its source. A written instruction block
+alone does not establish that the new chat loaded it. See [BOOTSTRAP](../BOOTSTRAP.md)
+if your host uses a different instruction mechanism.
 
-## Optional scene: schedule, pause and exit
+## Optional: share the same knowledge
 
-Only if scheduled maintenance is wanted, show its plan, actual provider registration,
-trial and last-success evidence separately. Do not create a task just to make the basic
-workflow look complete. Pause or disable the task, then demonstrate that direct retrieval
-and capture still work. Show preserved knowledge after removing managed integration.
+To connect an existing private GitHub repository:
 
-An unavailable scheduler does not invalidate the basic demonstration. No background model
-or community review/merge schedule is required. History collection and larger archives
-are advanced opt-in demonstrations with a user-chosen source range.
+```sh
+python3 scripts/ak.py --root "/path/to/demo-knowledge" connect-sync --repository owner/private-knowledge
+python3 scripts/ak.py --root "/path/to/demo-knowledge" sync
+```
 
-The video should show less repeated explanation, exact facts and traceable corrections.
-It does not need a token-savings comparison. If a future demonstration makes a cost or
-performance claim, that specific claim needs its own measured evidence.
+Follow the [sync guide](sync.md) for repository verification and existing-history
+requirements. On the other device, obtain the same knowledge repository, attach it
+and connect that Agent's instructions. Retrieve the corrected preference and
+compare its ID and source.
+
+For a mobile drive, use the [removable storage flow](local-storage.md) on each
+device. Keep local saving, remote synchronization and successful retrieval in
+another chat distinct when describing what you observed.

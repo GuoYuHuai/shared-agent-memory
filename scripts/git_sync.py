@@ -625,9 +625,19 @@ def sync(
 
     remote_has_branch = remote_branch_exists(remote, branch, work_root)
     if not remote_has_branch:
-        return failure("remote-branch-missing", branch, retryable=False)
+        if not push:
+            return failure("remote-branch-missing", branch, retryable=False)
+        # A missing configured branch is not evidence of a new repository.
+        # Inspect every advertised ref, including other branches and tags,
+        # before allowing the narrowly scoped first push.
+        refs = git(["ls-remote", "--refs", remote], root=work_root)
+        if refs.returncode != 0:
+            return failure("remote-refs-unavailable", branch, retryable=True)
+        if refs.stdout.strip():
+            return failure("remote-not-empty", branch, retryable=False)
     pulled = False
     pushed = False
+    remote_branch_created = False
     if pull and remote_has_branch:
         local_head = value(["rev-parse", "HEAD"], root=work_root)
         remote_head = value(
@@ -666,6 +676,8 @@ def sync(
                 merge_base = value(
                     ["merge-base", local_head, remote_head], root=work_root
                 )
+                if not merge_base:
+                    return failure("unrelated-histories", branch, retryable=False)
                 rebased = rebase_onto(remote, branch, work_root)
                 if not rebased.get("ok"):
                     cleanup = dict(rebased.get("cleanup") or {})
@@ -702,15 +714,20 @@ def sync(
                 pulled = True
 
     if push:
+        # Porcelain distinguishes an actual new branch from a concurrent
+        # writer reaching the same commit before this ordinary, non-force push.
+        push_arguments = ["push"] + (["--porcelain"] if not remote_has_branch else [])
         result = git(
-            ["push", remote, "HEAD:refs/heads/%s" % branch], root=work_root
+            push_arguments + [remote, "HEAD:refs/heads/%s" % branch], root=work_root
         )
         if result.returncode != 0 and remote_has_branch:
             # Another device may have pushed after our fetch. Retry exactly once
             # through a normal rebase; never force-push shared knowledge.
-            fetched = git(["fetch", remote], root=work_root)
+            fetched = git(["fetch", "--prune", remote], root=work_root)
             if fetched.returncode != 0:
                 return failure("push-race-fetch-failed", branch, retryable=True)
+            if not remote_branch_exists(remote, branch, work_root):
+                return failure("push-race-remote-branch-missing", branch, retryable=False)
             local_head = value(["rev-parse", "HEAD"], root=work_root)
             remote_head = value(
                 ["rev-parse", "%s/%s" % (remote, branch)], root=work_root
@@ -742,6 +759,9 @@ def sync(
             merge_base = value(
                 ["merge-base", local_head, remote_head], root=work_root
             )
+            if not merge_base:
+                return failure("unrelated-histories", branch, retryable=False,
+                               phase="push-race")
             rebased = rebase_onto(remote, branch, work_root)
             if not rebased.get("ok"):
                 cleanup = dict(rebased.get("cleanup") or {})
@@ -779,8 +799,15 @@ def sync(
                 ["push", remote, "HEAD:refs/heads/%s" % branch], root=work_root
             )
         if result.returncode != 0:
-            return failure("push-failed", branch, retryable=True)
+            return failure("push-failed" if remote_has_branch else "first-push-failed",
+                           branch, retryable=True)
         pushed = True
+        if not remote_has_branch:
+            remote_branch_created = any(
+                line.startswith("*\t")
+                and line.split("\t")[1].endswith(":refs/heads/%s" % branch)
+                for line in result.stdout.splitlines()
+            )
 
     return {
         "ok": True,
@@ -790,7 +817,7 @@ def sync(
         "branch": branch,
         "pulled": pulled,
         "pushed": pushed,
-        "remote_branch_created": False,
+        "remote_branch_created": remote_branch_created,
     }
 
 

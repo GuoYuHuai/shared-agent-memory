@@ -39,7 +39,7 @@ def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
         state = json.loads(state_path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         pass
-    if state.get('binding') != freshness_binding(root, config):
+    if not isinstance(state, dict) or state.get('binding') != freshness_binding(root, config):
         state = {}
     verified_at = kb.parse_time(state.get('remote_verified_at'))
     now = kb.utc_now()

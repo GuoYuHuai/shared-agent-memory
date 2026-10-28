@@ -13,7 +13,7 @@ import uuid
 import workspace_lock
 import device_identity
 
-VERSION = '0.1.0-experimental'
+VERSION = '0.2.0-experimental'
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 BEGIN = '<!-- AI-KNOWLEDGE:PUBLIC:BEGIN -->'
 END = '<!-- AI-KNOWLEDGE:PUBLIC:END -->'
@@ -63,6 +63,24 @@ def installation_owner(root):
 
 def owner_matches(receipt, owner):
     return isinstance(receipt,dict) and all(receipt.get(key)==value for key,value in owner.items())
+
+
+def instruction_links_before_rebind(root):
+    """Keep the original tool usable until its same-device links are removed."""
+    import instruction_link
+    base = instruction_link._path(root / '.ai-knowledge/instruction-links')
+    if not base.exists():
+        return
+    owner = installation_owner(root)
+    for path in sorted(base.glob('*.json')):
+        receipt = instruction_link._read_receipt(instruction_link._path(path))
+        if not receipt or receipt.get('connection') not in ('connected', 'pending'):
+            continue
+        same_environment = all(receipt.get(key) == owner[key] for key in (
+            'source_device_id', 'platform_fingerprint', 'knowledge_base_id', 'knowledge_root'))
+        if same_environment and receipt.get('tool_root') != owner['tool_root']:
+            raise ValueError('disconnect instruction links with the previous tool directory before changing tool_root; '
+                             'then run installation from the new directory. Preserve the existing receipt and instruction file.')
 
 
 def scheduler_receipts_before_uninstall(root, owner):
@@ -149,9 +167,12 @@ def install(root, repository, mode):
         raise ValueError('knowledge root must be separate from tool source')
     volume=removable_volume(root) if mode=='removable' else None
     marker = root / '.ai-knowledge/install.json'
-    for relative in ('AGENTS.md','MANIFEST.json','POLICY.md','config','schema','.ai-knowledge','.git'):
+    for relative in ('AGENTS.md','MANIFEST.json','POLICY.md','config','schema','.ai-knowledge','.git',
+                     '.ai-knowledge/uninstall-pending.json'):
         if (root/relative).is_symlink():
             raise ValueError('managed path is a symlink; preserve it and inspect ownership: '+relative)
+    if (root/'.ai-knowledge/uninstall-pending.json').exists():
+        raise ValueError('uninstall recovery pending; run scripts/install.py --root KNOWLEDGE_ROOT --uninstall again before reinstalling')
     old = read(marker) if marker.exists() else None
     if repository is None and old:
         repository = old.get('repository')
@@ -160,6 +181,7 @@ def install(root, repository, mode):
         raise ValueError('repository identity differs from existing installation')
     if old and old.get('data_schema') != '1':
         raise ValueError('unsupported data schema; writes paused')
+    instruction_links_before_rebind(root)
     if not old and root.exists() and any(p.name != '.git' for p in root.iterdir()):
         # A second device may clone shared data without the ignored local receipt.
         # Adopt only a recognized, versioned knowledge repository; never rewrite data.
@@ -195,11 +217,14 @@ def install(root, repository, mode):
                         '-m','Initialize empty knowledge history'],check=True,capture_output=True)
     with workspace_lock.acquire(root):
         # Re-read after taking the lock, so concurrent installation cannot lose state.
+        if (root/'.ai-knowledge/uninstall-pending.json').exists():
+            raise ValueError('uninstall recovery pending; run scripts/install.py --root KNOWLEDGE_ROOT --uninstall again before reinstalling')
         old = read(marker) if marker.exists() else old
         if volume is not None:
             verify_removable_binding(root,old,volume)
         if old and (old.get('repository') != repository or old.get('data_schema') != '1'):
             raise ValueError('installation changed while waiting')
+        instruction_links_before_rebind(root)
         rule = root / 'AGENTS.md'
         text, span = owned_text(rule, old)
         new_block = block(root)
@@ -261,22 +286,151 @@ def install(root, repository, mode):
                             'Initialize user knowledge configuration'],check=True,capture_output=True)
     return {'ok':True,'installation':manifest,'repeat_install':bool(old),'attached_existing':adopted}
 
+def uninstall_rule_text(path):
+    # Preserve surrounding text byte-for-byte, including its original newlines.
+    return path.read_bytes().decode('utf-8') if path.exists() else ''
+
+
+def uninstall_rule_remainder(text, old):
+    if BEGIN not in text and END not in text:
+        if old.get('block_hash'):
+            raise ValueError('managed rule missing; preserve user edits and reconcile manually')
+        return text
+    if text.count(BEGIN) != 1 or text.count(END) != 1:
+        raise ValueError('ambiguous ownership markers; preserve the instruction file')
+    start, end = text.index(BEGIN), text.index(END) + len(END)
+    if end < start or digest(text[start:end]) != old.get('block_hash'):
+        raise ValueError('managed rule modified or owned by another installation')
+    return text[:start] + text[end:]
+
+
+def write_uninstall_rule(path, before, after):
+    temporary = path.with_name('.' + path.name + '.uninstall-' + uuid.uuid4().hex)
+    try:
+        with temporary.open('xb') as handle:
+            handle.write(after.encode('utf-8'))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary, path.stat().st_mode & 0o777)
+        if path.is_symlink() or uninstall_rule_text(path) != before:
+            raise ValueError('instruction file changed during uninstall; preserve it and retry')
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def uninstall_receipt_hash(receipt):
+    return digest(json.dumps(receipt, sort_keys=True, ensure_ascii=False))
+
+
+def uninstall_guards(root, old, owner):
+    if not owner_matches(old, owner):
+        raise ValueError('installation belongs to another device or path; attach this device before uninstall')
+    if old.get('data_schema') != '1' or read(root/'MANIFEST.json').get('schema_version') != '1':
+        raise ValueError('unsupported knowledge schema; uninstall paused')
+    if old.get('mode') == 'removable':
+        verify_removable_binding(root, old, removable_volume(root))
+    import instruction_link
+    if instruction_link.connections(root):
+        raise ValueError('disconnect connected instruction files before uninstall: use ak.py --root KNOWLEDGE_ROOT disconnect --instructions FILE; reconcile unverified links in their original environment')
+    if old.get('tasks') or old.get('unverified_prior_tasks'):
+        raise ValueError('stop and verify registered or unverified prior tasks before uninstall')
+    return scheduler_receipts_before_uninstall(root, owner)
+
+
 def uninstall(root):
+    root = root.expanduser()
+    if root.is_symlink():
+        raise ValueError('choose the real installed knowledge directory before uninstall')
     root = root.resolve()
+    if (not root.is_dir() or not (root/'POLICY.md').is_file()
+            or not (root/'MANIFEST.json').is_file()
+            or not any((root/'.ai-knowledge'/name).is_file()
+                       for name in ('install.json', 'uninstall-pending.json', 'uninstalled.json'))):
+        raise ValueError('installed knowledge directory unavailable; reconnect its storage before uninstall')
+    for relative in ('.ai-knowledge', '.ai-knowledge/install.json', '.ai-knowledge/uninstalled.json',
+                     '.ai-knowledge/uninstall-pending.json', 'AGENTS.md', 'MANIFEST.json', 'POLICY.md',
+                     'generated', 'generated/workspace-mutation.lock'):
+        if (root/relative).is_symlink():
+            raise ValueError('managed path is a symlink; preserve it and inspect ownership')
     with workspace_lock.acquire(root):
-        marker=root/'.ai-knowledge/install.json'
-        old=read(marker)
-        owner=installation_owner(root)
-        if not owner_matches(old,owner):
-            raise ValueError('installation belongs to another device or path; attach this device before uninstall')
-        if old.get('tasks') or old.get('unverified_prior_tasks'):
-            raise ValueError('stop and verify registered or unverified prior tasks before uninstall')
-        foreign_receipts=scheduler_receipts_before_uninstall(root,owner)
-        path=root/'AGENTS.md'; text,span=owned_text(path,old)
-        if span:path.write_text(text[:span[0]]+text[span[1]:],encoding='utf-8')
-        save(root/'.ai-knowledge/uninstalled.json',old)
-        marker.unlink()
+        marker = root/'.ai-knowledge/install.json'
+        pending_path = root/'.ai-knowledge/uninstall-pending.json'
+        completed_path = root/'.ai-knowledge/uninstalled.json'
+        rule = root/'AGENTS.md'
+        owner = installation_owner(root)
+        pending = read(pending_path) if pending_path.exists() else None
+        old = read(marker) if marker.exists() else None
+        already_uninstalled = False
+        if pending is not None:
+            saved = pending.get('installation') if isinstance(pending, dict) else None
+            if (not owner_matches(pending, owner) or pending.get('format') != 'agent-knowledge-uninstall-v1'
+                    or not isinstance(saved, dict)
+                    or not re.fullmatch(r'[0-9a-f]{32}', str(pending.get('operation_id', '')))
+                    or not isinstance(pending.get('rule_existed'), bool)
+                    or not all(re.fullmatch(r'[0-9a-f]{64}', str(pending.get(key, '')))
+                               for key in ('rule_before_hash', 'rule_after_hash'))
+                    or pending.get('installation_hash') != uninstall_receipt_hash(saved)
+                    or (old is not None and uninstall_receipt_hash(old) != pending['installation_hash'])):
+                raise ValueError('uninstall recovery state does not match this installation; preserve receipts and reconcile ownership')
+            old = saved
+            if not marker.exists():
+                completed = read(completed_path) if completed_path.exists() else None
+                if (not owner_matches(completed, owner)
+                        or completed.get('uninstall_operation') != pending.get('operation_id')
+                        or completed.get('uninstall_status') != 'complete'):
+                    raise ValueError('uninstall completion receipt missing or mismatched; preserve recovery state')
+        elif old is None:
+            completed = read(completed_path) if completed_path.exists() else None
+            if not owner_matches(completed, owner):
+                raise ValueError('no matching installation or completed uninstall receipt; preserve this directory')
+            if completed.get('uninstall_status') not in (None, 'complete'):
+                raise ValueError('uninstall receipt is not complete; preserve it and reconcile recovery state')
+            old = completed
+            already_uninstalled = True
+        foreign_receipts = uninstall_guards(root, old, owner)
+        if completed_path.exists() and not owner_matches(read(completed_path), owner):
+            raise ValueError('completed uninstall receipt belongs to another installation; preserve it and reconcile ownership')
+        text = uninstall_rule_text(rule)
+        if already_uninstalled:
+            if BEGIN in text or END in text:
+                raise ValueError('instruction block exists after completed uninstall; preserve it and inspect ownership')
+        else:
+            if pending is None:
+                remainder = uninstall_rule_remainder(text, old)
+                pending = {**owner, 'format': 'agent-knowledge-uninstall-v1',
+                           'operation_id': uuid.uuid4().hex, 'installation': old,
+                           'installation_hash': uninstall_receipt_hash(old),
+                           'rule_existed': rule.exists(),
+                           'rule_before_hash': digest(text), 'rule_after_hash': digest(remainder)}
+                # Recovery information must exist before the instruction file changes.
+                save(pending_path, pending)
+            elif BEGIN in text or END in text:
+                # Users may edit surrounding text while an interrupted operation
+                # waits. Verify the block, preserve those edits, and refresh the plan.
+                remainder = uninstall_rule_remainder(text, old)
+                revised = {**pending, 'rule_before_hash': digest(text), 'rule_after_hash': digest(remainder)}
+                if revised != pending:
+                    save(pending_path, revised)
+                    pending = revised
+            else:
+                if (digest(text) != pending.get('rule_after_hash')
+                        or rule.exists() != pending.get('rule_existed')):
+                    raise ValueError('instruction file changed after pending removal; preserve user text and inspect the recovery hashes')
+                remainder = text
+            if text != remainder:
+                write_uninstall_rule(rule, text, remainder)
+            if digest(uninstall_rule_text(rule)) != pending['rule_after_hash']:
+                raise ValueError('uninstall rule readback failed; retry uninstall to recover')
+            completed = {**old, 'uninstall_status': 'complete',
+                         'uninstall_operation': pending['operation_id'],
+                         'removed_rule_hash': old.get('block_hash'),
+                         'rule_after_hash': pending['rule_after_hash']}
+            save(completed_path, completed)
+            marker.unlink(missing_ok=True)
+            pending_path.unlink()
     return {'ok':True,'knowledge_preserved':True,'rules_removed':True,'managed_tasks':0,
+            'already_uninstalled':already_uninstalled,
             'task_scope':'current-device-and-path-only','foreign_receipts_preserved':foreign_receipts,
             'foreign_scheduler_status':'not-verified'}
 

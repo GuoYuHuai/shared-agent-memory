@@ -73,12 +73,25 @@ def commit_canonical() -> Dict[str, object]:
     # --only makes the automated commit path-scoped. Any unrelated entries
     # already staged by the user remain staged and are never swept into this
     # commit or reset as a side effect.
+    commit_command = ["git", "-c", "commit.gpgsign=false"]
+    fallback_fields = []
+    for field, fallback in (("user.name", "AI Knowledge"), ("user.email", "knowledge@localhost")):
+        identity = run(["git", "config", "--get", field])
+        if identity.returncode not in (0, 1):
+            raise RuntimeError("canonical-identity-unavailable")
+        if identity.returncode == 1 or not identity.stdout.strip():
+            commit_command.extend(["-c", "%s=%s" % (field, fallback)])
+            fallback_fields.append(field)
+    # Effective local/global identity takes precedence. Missing values and
+    # unattended signing are configured for this invocation only, never saved.
     committed = run(
-        ["git", "commit", "--only", "-m", message, "--", *paths]
+        [*commit_command, "commit", "--only", "-m", message, "--", *paths]
     )
     if committed.returncode != 0:
         raise RuntimeError("canonical-commit-failed")
-    return {"committed": True, "commit": run(["git", "rev-parse", "HEAD"]).stdout.strip()}
+    return {"committed": True, "commit": run(["git", "rev-parse", "HEAD"]).stdout.strip(),
+            "identity": {"scope": "this-commit", "fallback_fields": fallback_fields,
+                         "configuration_changed": False}}
 
 
 def refresh_index_after_sync(sync_result: Dict[str, object]) -> Dict[str, object]:
@@ -201,12 +214,10 @@ def _synchronize(no_push: bool) -> Dict[str, object]:
             config_path = ROOT / "config/kb.json"
             config = json.loads(config_path.read_text()) if config_path.is_file() else {}
             if config.get("hot_sync", {}).get("enabled") is False:
-                identity = git_sync.ensure_local_bot_identity(ROOT, identity_policy={
-                    "bot_user_name": "AI Knowledge", "bot_user_email": "knowledge@localhost"})
                 commit = commit_canonical()
                 return {"ok": True, "action": "hot-sync", "status": "local-only",
                         "remote_verified": False, "sync": {"skipped": "disabled-by-user", "pushed": False},
-                        "identity": identity, **commit}
+                        **commit}
             origin = git_sync.configured_origin_status("origin", ROOT)
             if not origin.get("ok"):
                 return {
@@ -216,7 +227,6 @@ def _synchronize(no_push: bool) -> Dict[str, object]:
                     "error": str(origin.get("status") or "origin-invalid"),
                     "origin_identity_valid": False,
                 }
-            identity = git_sync.ensure_local_bot_identity(ROOT)
             commit = commit_canonical()
             sync_result = git_sync.sync(
                 "origin", pull=True, push=not no_push, root=ROOT
@@ -232,7 +242,6 @@ def _synchronize(no_push: bool) -> Dict[str, object]:
         "ok": bool(sync_result.get("ok") and index.get("ok")),
         "action": "hot-sync",
         "origin_identity_valid": True,
-        "identity": identity,
         **commit,
         "sync": sync_result,
         "index": index,

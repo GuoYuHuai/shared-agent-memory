@@ -1,4 +1,5 @@
 import importlib.util
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import subprocess
@@ -58,6 +59,191 @@ class GitSyncTests(unittest.TestCase):
         command(clone, "git", "config", "user.name", "AI Knowledge Test")
         command(clone, "git", "config", "user.email", "test@localhost")
         return clone
+
+    def pending_first_push(self, root: Path):
+        remote = root / "empty.git"
+        command(root, "git", "init", "--bare", "--initial-branch=main", str(remote))
+        local = self.initialize_clone(root, remote, "local")
+        self.write_policy(local)
+        (local / "local-fact.txt").write_text("fictional local fact\n")
+        command(local, "git", "add", ".")
+        command(local, "git", "commit", "-m", "local knowledge")
+        return remote, local
+
+    @contextmanager
+    def allow_fixture_transport(self, module):
+        # Real local Git fetch/push/rebase run against disposable bare repos.
+        # Only GitHub identity/privacy checks are substituted; these tests do
+        # not claim authenticated GitHub service compatibility.
+        with mock.patch.object(module, "configured_origin_status", return_value={"ok":True, "status":"ready"}), mock.patch.object(module, "repository_privacy_status", return_value={"ok":True, "private":True, "status":"repository-private"}):
+            yield
+
+    def independent_writer(self, root, remote):
+        other = self.initialize_clone(root, remote, "independent")
+        command(other, "git", "checkout", "--orphan", "independent-history")
+        command(other, "git", "rm", "-rf", "--ignore-unmatch", ".")
+        (other / "other-fact.txt").write_text("fictional independent history\n")
+        command(other, "git", "add", ".")
+        command(other, "git", "commit", "-m", "independent knowledge")
+        return other
+
+    def test_first_push_creates_only_expected_branch_and_is_not_repeated(self):
+        for pull in (False, True):
+            with self.subTest(pull=pull), tempfile.TemporaryDirectory() as directory:
+                module = load_module()
+                root = Path(directory)
+                remote, local = self.pending_first_push(root)
+                original = command(local, "git", "rev-parse", "HEAD")
+                with self.allow_fixture_transport(module), mock.patch.object(module, "git", wraps=module.git) as invoked:
+                    first = module.sync("origin", pull=pull, push=True, root=local)
+                    again = module.sync("origin", pull=True, push=True, root=local)
+                self.assertTrue(first["ok"], first)
+                self.assertTrue(first["pushed"])
+                self.assertFalse(first["pulled"])
+                self.assertTrue(first["remote_branch_created"])
+                self.assertTrue(again["ok"], again)
+                self.assertFalse(again["remote_branch_created"])
+                self.assertEqual(command(root, "git", "--git-dir", str(remote), "rev-parse", "refs/heads/main"), original)
+                self.assertEqual(command(root, "git", "--git-dir", str(remote), "for-each-ref", "--format=%(refname)"), "refs/heads/main")
+                pushes = [call.args[0] for call in invoked.call_args_list if call.args[0][0] == "push"]
+                self.assertTrue(pushes)
+                self.assertFalse(any(any(arg.startswith("--force") or arg.startswith("+") for arg in push) for push in pushes))
+
+    def test_pull_only_does_not_initialize_an_empty_remote(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            with self.allow_fixture_transport(module), mock.patch.object(module, "git", wraps=module.git) as invoked:
+                result = module.sync("origin", pull=True, push=False, root=local)
+            self.assertEqual(result["error"], "remote-branch-missing")
+            self.assertFalse(any(call.args[0][0] == "push" for call in invoked.call_args_list))
+            self.assertEqual(command(root, "git", "--git-dir", str(remote), "for-each-ref"), "")
+
+    def test_missing_expected_branch_rejects_other_branches_tags_and_notes(self):
+        for reference in ("refs/heads/other", "refs/tags/fictional-v1", "refs/notes/fictional"):
+            with self.subTest(reference=reference), tempfile.TemporaryDirectory() as directory:
+                module = load_module()
+                root = Path(directory)
+                remote, local = self.pending_first_push(root)
+                command(local, "git", "push", "origin", "HEAD:" + reference)
+                before = command(root, "git", "--git-dir", str(remote), "show-ref")
+                with self.allow_fixture_transport(module), mock.patch.object(module, "git", wraps=module.git) as invoked:
+                    result = module.sync("origin", pull=True, push=True, root=local)
+                self.assertEqual(result["error"], "remote-not-empty")
+                self.assertFalse(result["retryable"])
+                self.assertFalse(any(call.args[0][0] == "push" for call in invoked.call_args_list))
+                self.assertEqual(command(root, "git", "--git-dir", str(remote), "show-ref"), before)
+
+    def test_failed_empty_ref_check_cannot_start_a_push(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            actual_git = module.git
+            calls = []
+            def unavailable(arguments, **kwargs):
+                calls.append(arguments)
+                if arguments == ["ls-remote", "--refs", "origin"]:
+                    return subprocess.CompletedProcess(arguments, 128, "", "fictional connection failure")
+                return actual_git(arguments, **kwargs)
+            with self.allow_fixture_transport(module), mock.patch.object(module, "git", side_effect=unavailable):
+                result = module.sync("origin", pull=True, push=True, root=local)
+            self.assertEqual(result["error"], "remote-refs-unavailable")
+            self.assertTrue(result["retryable"])
+            self.assertFalse(any(args[0] == "push" for args in calls))
+            self.assertEqual(command(root, "git", "--git-dir", str(remote), "for-each-ref"), "")
+
+    def test_first_push_race_preserves_both_independent_histories_without_rebase(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            other = self.independent_writer(root, remote)
+            local_head = command(local, "git", "rev-parse", "HEAD")
+            other_head = command(other, "git", "rev-parse", "HEAD")
+            actual_git = module.git
+            pushes = []
+            def race(arguments, **kwargs):
+                if arguments[0] == "push":
+                    pushes.append(arguments)
+                    command(other, "git", "push", "origin", "HEAD:refs/heads/main")
+                return actual_git(arguments, **kwargs)
+            with self.allow_fixture_transport(module), mock.patch.object(module, "git", side_effect=race), mock.patch.object(module, "rebase_onto", wraps=module.rebase_onto) as rebase:
+                result = module.sync("origin", pull=True, push=True, root=local)
+            self.assertEqual(result["error"], "first-push-failed")
+            self.assertEqual(len(pushes), 1)
+            rebase.assert_not_called()
+            self.assertEqual(command(local, "git", "rev-parse", "HEAD"), local_head)
+            self.assertEqual(command(root, "git", "--git-dir", str(remote), "rev-parse", "main"), other_head)
+            self.assertEqual(command(local, "git", "status", "--porcelain"), "")
+
+    def test_same_head_race_does_not_claim_this_operation_created_the_branch(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            actual_git = module.git
+            def race(arguments, **kwargs):
+                if arguments[0] == "push":
+                    command(local, "git", "push", "origin", "HEAD:refs/heads/main")
+                return actual_git(arguments, **kwargs)
+            with self.allow_fixture_transport(module), mock.patch.object(module, "git", side_effect=race):
+                result = module.sync("origin", pull=True, push=True, root=local)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(result["pushed"])
+            self.assertFalse(result["remote_branch_created"])
+            self.assertEqual(command(root, "git", "--git-dir", str(remote), "rev-parse", "main"), command(local, "git", "rev-parse", "HEAD"))
+
+    def test_unrelated_remote_history_is_never_rebased_for_pull_or_push_only(self):
+        for pull in (True, False):
+            with self.subTest(pull=pull), tempfile.TemporaryDirectory() as directory:
+                module = load_module()
+                root = Path(directory)
+                remote, local = self.pending_first_push(root)
+                other = self.independent_writer(root, remote)
+                command(other, "git", "push", "origin", "HEAD:refs/heads/main")
+                local_head = command(local, "git", "rev-parse", "HEAD")
+                other_head = command(other, "git", "rev-parse", "HEAD")
+                with self.allow_fixture_transport(module), mock.patch.object(module, "rebase_onto", wraps=module.rebase_onto) as rebase:
+                    result = module.sync("origin", pull=pull, push=True, root=local)
+                self.assertEqual(result["error"], "unrelated-histories")
+                self.assertFalse(result["retryable"])
+                rebase.assert_not_called()
+                self.assertEqual(command(local, "git", "rev-parse", "HEAD"), local_head)
+                self.assertEqual(command(root, "git", "--git-dir", str(remote), "rev-parse", "main"), other_head)
+                self.assertEqual(command(local, "git", "status", "--porcelain"), "")
+
+    def test_remote_replaced_after_fetch_is_rejected_before_retry_rebase(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            command(local, "git", "push", "origin", "main")
+            other = self.independent_writer(root, remote)
+            (local / "later.txt").write_text("fictional later fact\n")
+            command(local, "git", "add", ".")
+            command(local, "git", "commit", "-m", "later local fact")
+            local_head = command(local, "git", "rev-parse", "HEAD")
+            other_head = command(other, "git", "rev-parse", "HEAD")
+            actual_git = module.git
+            pushes = []
+            def replaced(arguments, **kwargs):
+                if arguments[0] == "push":
+                    pushes.append(arguments)
+                    # Simulate an independent administrator replacing the
+                    # disposable remote. The synchronizer itself never forces.
+                    command(other, "git", "push", "--force", "origin", "HEAD:refs/heads/main")
+                return actual_git(arguments, **kwargs)
+            with self.allow_fixture_transport(module), mock.patch.object(module, "git", side_effect=replaced), mock.patch.object(module, "rebase_onto", wraps=module.rebase_onto) as rebase:
+                result = module.sync("origin", pull=True, push=True, root=local)
+            self.assertEqual(result["error"], "unrelated-histories")
+            self.assertEqual(result["phase"], "push-race")
+            self.assertEqual(len(pushes), 1)
+            rebase.assert_not_called()
+            self.assertEqual(command(local, "git", "rev-parse", "HEAD"), local_head)
+            self.assertEqual(command(root, "git", "--git-dir", str(remote), "rev-parse", "main"), other_head)
+            self.assertEqual(command(local, "git", "status", "--porcelain"), "")
 
     def test_two_devices_rebase_nonconflicting_commits_without_force(self):
         module = load_module()

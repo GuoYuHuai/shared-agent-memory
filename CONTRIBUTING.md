@@ -1,43 +1,60 @@
-# 参与贡献
+# Contributing / 参与贡献
 
-欢迎贡献 Agent 或平台适配、问题修复、测试、文档和使用经验。项目关注的是让用户少重复交代背景、配置和习惯。无需先完成所有品牌认证，也不以 token 节省作为贡献或发布门槛。
+Bug reports, fixes, documentation and support for more Agents are welcome.
 
-请扩展共享知识内核和薄适配层，避免给每种 Agent 复制一套互不兼容的记忆系统。未知产品同样可以接入：记录实际工具、权限、操作和结果，由能力决定可用路径。
+## Make a change
 
-## 开始
-
-1. 先读 [BOOTSTRAP.md](BOOTSTRAP.md)、[知识协议](docs/protocol.md)和[能力协议](docs/capabilities.md)。
-2. 在独立开发目录中使用虚构样例，不把个人知识、原始会话、凭据、设备配置或私有 Git 历史带入公共贡献。
-3. 保持三种入口可用：工作中主动捕获、用户直接记录、可选定时维护。不要让后台任务成为基本读写的依赖。
-4. 保持默认轻量。需要历史回溯、大规模采集或索引时，提供按用户范围启用的路径，不把作者设备的存储布局变成安装前提。
-5. 适配时分别说明本地文件/执行、仓库读取/写入、版本一致性、持久规则、历史访问、调度与模型能力。缺失操作应返回准确状态，并继续可用部分。
-6. 对修改涉及的成功、权限不足、版本竞争、中断恢复、重复操作和已有配置保护做行为验证。不要把 mock 或同机目录当作真实产品/实机认证。
-7. 在 PR 中记录实际版本、系统、权限、日期、命令或工具操作、结果与未验证项。
-
-本地参考测试命令：
+1. Describe the problem with a small example and the result you expected.
+2. Use a separate development checkout and fictional knowledge records. Keep personal notes, credentials, conversation archives and device settings out of commits.
+3. Add tests for the behavior you change, including relevant permission failures, repeated operations and recovery after interruption.
+4. Run the tests below. In the PR, state what changed, which checks you ran and any remaining limitations.
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+node tests/test_github.mjs
 ```
 
-GitHub adapter 的 Node 测试见 [docs/github.md](docs/github.md)。测试使用可清理的隔离目录，成功、失败和中断后都清理本任务可再生产物。不要针对正在使用的个人知识库运行破坏性测试。
+Tests should use temporary folders and clean them up. Do not run destructive tests against a knowledge folder someone uses for work.
 
-## 兼容性与数据保护
+## Support another Agent
 
-保留稳定 ID、来源、生命周期、更正关系和精确值的政策语义。纯本地、私有 GitHub 与移动盘可以使用同一知识格式；本地 Git 不意味着需要 GitHub 账户或同步。
+Start with [BOOTSTRAP.md](BOOTSTRAP.md) and the [adapter guide](docs/adapters.md). Reuse the existing record format and operations. Describe what the Agent can actually read, write and execute, along with its version, system and required permissions.
 
-安装与升级只修改有所有权证据的工具文件，保留用户数据和自定义规则；冲突不能静默覆盖。版本不兼容时给出明确行为和恢复方式。卸载或停用调度不删除知识。
+Show a saved record being read back, a correction being retrieved and any existing settings being preserved. Note whether the evidence comes from a test fixture or an actual installation. A missing scheduler should not prevent normal reading and recording.
 
-能力声明、契约测试、真实工具运行、原生宿主加载与物理设备验证分别记录。定时任务的计划、登记、试跑和最近成功也分别记录。错误的“没有资料”或“全部完成”同样是正确性问题。
+## Preserve user data
 
-## Issue、PR 与维护
+Changes should keep record IDs, sources, exact authorized values and correction history intact. Preserve user policy and custom settings during installation and upgrades. Document incompatible changes and how to recover. Keep history imports and background tasks optional.
 
-使用仓库模板提供最小复现、预期行为和实际结果。公共报告只包含虚构或明确获准公开的材料与最小诊断片段；私人原始记录不应随问题自动上传。
+Use the Issue and PR templates for reports. Share only the diagnostic excerpts needed to reproduce a problem. If an Agent prepares a contribution, get the contributor's authorization before it posts publicly.
 
-Agent 可以帮助准备贡献，但向社区发送 Issue/PR 需要贡献者授权。维护者可以按需要另行安排审阅或定时维护；项目本身不自动为使用者建立公开提交、审计或合并任务。
+Explain new dependencies and their licenses. Credit third-party code and documentation. Contributions are licensed under [MIT](LICENSE) unless explicitly stated otherwise.
 
-新增依赖需要说明用途、许可证与平台影响。引用第三方代码或文档时保留来源并确认许可。除明确另有约定外，贡献采用本仓库的 MIT 许可。
+---
 
-## English summary
+## 中文
 
-Contribute capability-based adapters, fixes, tests or documentation without duplicating the knowledge engine. Preserve lightweight defaults, local/offline use, provenance, corrections and user-owned files. Background scheduling is optional. Use fictional fixtures, report actual evidence and do not publish personal data or private Git history. Contributions are welcome before every Agent or platform is certified; token savings are not a release requirement.
+欢迎提交问题、修复、文档改进，以及更多 Agent 的接入支持。
+
+### 提交修改
+
+1. 用一个小例子说明问题，以及你期待的结果。
+2. 在独立开发目录中使用虚构知识。不要提交个人资料、凭据、会话档案或设备设置。
+3. 为改动添加必要的行为测试，包括相关的权限不足、重复操作和中断恢复。
+4. 运行上面的 Python 与 Node 测试命令，在 PR 中说明修改内容、已运行的检查和剩余限制。
+
+测试使用临时目录并负责清理。不要在日常使用的知识库上运行破坏性测试。
+
+### 增加 Agent 支持
+
+从 [BOOTSTRAP.md](BOOTSTRAP.md) 和[适配指南](docs/adapters.md)开始，复用已有记录格式和操作。说明该 Agent 实际能读取、保存和执行什么，以及版本、系统和所需权限。
+
+验证保存后的记录能读回、更正能查到、已有设置能保留。说明结果来自测试样例还是实际安装。缺少定时能力不应影响平常的查询和记录。
+
+### 保留用户数据
+
+修改应保留记录 ID、来源、已授权的精确值和更正历史。安装与升级保留用户政策和自定义设置；不兼容的修改需要说明恢复方法。历史导入与后台任务继续保持可选。
+
+报告问题时使用 Issue 或 PR 模板，只提供复现所需的诊断片段。Agent 可以帮助准备贡献，公开提交前应取得贡献者授权。
+
+新增依赖需说明用途和许可证，引用第三方代码或文档时注明来源。除明确另有约定外，贡献采用 [MIT 许可](LICENSE)。

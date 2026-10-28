@@ -43,6 +43,39 @@ class PublicRetrievalTests(unittest.TestCase):
             setattr(args, k, v)
         return kb.run(args)
 
+    def lifecycle_fixture(self):
+        self.event('old', 'Atlas reports use paragraphs', status='candidate')
+        self.event('new', 'Atlas reports use tables')
+        self.event('edge', 'Atlas report preference correction', kind='supersession', old_id='old', new_id='new')
+        self.event('review', 'Atlas report preference accepted', kind='candidate-resolution', candidate_id='old', resolution='accepted')
+
+    def test_normal_search_excludes_lifecycle_events_in_hot_and_indexed_paths(self):
+        self.lifecycle_fixture()
+        for indexed in (False, True):
+            with self.subTest(indexed=indexed):
+                if indexed:
+                    kb.init_knowledge_base(self.root)
+                report = self.search('Atlas')
+                self.assertEqual(report['retrieval_mode'], 'indexed' if indexed else 'hot-only')
+                self.assertEqual(report['current_count'], 1)
+                self.assertEqual({row['id'] for row in report['results']}, {'old', 'new'})
+                self.assertEqual([row['id'] for row in report['results'] if row['current_eligible']], ['new'])
+                self.assertFalse(next(row for row in report['results'] if row['id'] == 'old')['current_eligible'])
+
+    def test_explicit_lifecycle_kind_is_audit_evidence_never_current(self):
+        self.lifecycle_fixture()
+        for indexed in (False, True):
+            if indexed:
+                kb.init_knowledge_base(self.root)
+            for kind, event_id in (('supersession', 'edge'), ('candidate-resolution', 'review')):
+                with self.subTest(indexed=indexed, kind=kind):
+                    report = self.search('Atlas', kind=kind)
+                    self.assertEqual([row['id'] for row in report['results']], [event_id])
+                    self.assertEqual(report['current_count'], 0)
+                    self.assertEqual(report['conclusion'], 'lifecycle-audit-evidence')
+                    self.assertEqual(report['results'][0]['effective_status'], 'lifecycle-event')
+                    self.assertFalse(report['results'][0]['current_eligible'])
+
     def test_existing_raw_history_is_excluded_without_opt_in_for_new_config(self):
         import ingest_history
         self.event('curated', 'marker curated fact')

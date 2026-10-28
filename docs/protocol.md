@@ -27,7 +27,12 @@ Create an immutable event with a unique stable ID. Replaying the same ID and ide
 
 After writing, read the saved event from the actual destination and verify content, ID, path and version. Search or independently enumerate the committed ledger to prove discoverability. Local save, remote commit, indexing and cross-client verification are separate states.
 
-A correction adds a new record and an explicit supersession event. It does not overwrite the original. Rejected candidates and old values remain traceable. Concurrent incompatible corrections require visible conflict evidence; timestamp alone cannot silently resolve them.
+A correction adds a new record and an explicit supersession event. The everyday
+`ak.py correct` command publishes both in one create-only JSON file, so interruption
+cannot expose the replacement without its relationship. A ledger `.json` file can
+contain either one event or an array of events; `.jsonl` remains readable. Clients
+must validate and enumerate every event in a container, including nested record
+IDs, rather than assuming one filename means one record. It does not overwrite the original. Rejected candidates and old values remain traceable. Concurrent incompatible corrections require visible conflict evidence; timestamp alone cannot silently resolve them.
 
 ## GitHub-tool snapshot contract
 

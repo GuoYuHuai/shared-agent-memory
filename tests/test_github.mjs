@@ -33,4 +33,19 @@ assert.equal(selectMode(Object.fromEntries(['private_repo_read','private_repo_wr
 const incomplete=new GithubKnowledge({...tool,listFiles:async()=>({complete:false,paths:[]})},'example/knowledge');assert.equal((await incomplete.query('x')).absence_confirmed,false);
 let churn=0;const changing=new GithubKnowledge({...tool,head:async()=>String(++churn)},'example/knowledge');assert.equal((await changing.snapshot()).reason,'snapshot-changed');
 await assert.rejects(()=>new GithubKnowledge({...tool,repository:async()=>({full_name:'example/knowledge',private:false})},'example/knowledge').append(e('bad','bad')));
+// An atomic local correction is one JSON file containing both ledger events.
+await a.append(e('atomic-old','atomic theme blue'));
+const replacement=e('atomic-new','atomic theme green');
+const relation={...e('atomic-edge','atomic correction'),kind:'supersession',old_id:'atomic-old',new_id:'atomic-new'};
+files['ledger/by-id/atomic-new.json']=JSON.stringify([replacement,relation]);version++;
+const arraySnapshot=await b.snapshot();
+assert.equal(arraySnapshot.events.filter(row=>['atomic-new','atomic-edge'].includes(row.id)).length,2);
+assert.equal((await b.query('atomic theme blue')).results.length,0);
+assert.equal((await b.query('atomic theme green')).results[0].id,'atomic-new');
+assert.equal((await a.append(replacement)).duplicate,true);
+files['ledger/container.json']=JSON.stringify({events:[e('wrapped','container record')]});version++;
+assert.equal((await b.query('container record')).results[0].id,'wrapped');
+files['ledger/duplicate-array.json']=JSON.stringify([e('atomic-new','conflicting array identity')]);
+await assert.rejects(()=>b.snapshot(),/conflicting event identity/);
+delete files['ledger/duplicate-array.json'];
 console.log('GitHub connector contracts passed (in-memory fixture, not product certification)');

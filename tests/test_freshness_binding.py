@@ -40,6 +40,17 @@ class FreshnessBindingTests(unittest.TestCase):
             self.assertEqual(retrieve.retrieve(root, 'marker', sync_fn=callback)['freshness']['status'], 'verified')
             callback.assert_called_once()
 
+    def test_malformed_receipt_does_not_claim_freshness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'local'
+            install.install(root, None, 'local')
+            state = root / 'generated/retrieval-freshness.json'
+            state.parent.mkdir(exist_ok=True)
+            state.write_text('[]')
+            result = retrieve.retrieve(root, 'missing')
+            self.assertEqual(result['freshness']['status'], 'not-configured')
+            self.assertIsNone(result['freshness']['remote_verified_at'])
+
     def test_disabled_sync_does_not_use_configured_remote(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'local'

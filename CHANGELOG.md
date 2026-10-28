@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 experimental candidate — 2026-10-28
+
+- Add complete English and Chinese READMEs with language links, a shorter setup guide and an honest comparison of other memory workflows.
+- Add everyday commands for saving, recalling and correcting records, plus instruction-file connection and status.
+- Publish a correction and its replacement relationship together; GitHub readers now accept the same multi-event files.
+- Connect an existing local knowledge folder to an empty or related private GitHub repository without replacing its history. Support the first normal push to an empty remote.
+- Preserve Git settings and unrelated staged work; local saving also works without a preconfigured Git author.
+- Refresh foreground retrieval, exclude lifecycle bookkeeping from current facts, and report broken instruction connections.
+- Preserve project instructions during connection, upgrade and disconnection. Verify a new Codex CLI session against a fictional corrected record; other hosts still need their own live checks.
+
+
 ## 0.1.0 experimental candidate — 2026-10-28
 
 - Extract selected reusable knowledge tooling into a new clean-history repository.

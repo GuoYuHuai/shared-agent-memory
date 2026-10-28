@@ -33,9 +33,14 @@ the operation. Install manifests are backed up locally. Default new installation
 lightweight; reinstall does not reset a user's existing history or retention settings.
 The current release performs no schema migration.
 
+To add sync to a local installation, use [connect-sync](sync.md). Do not reinstall
+with a different repository flag: attaching a new remote is a separate operation.
+
 ## Upgrade and rollback
 
-Obtain a reviewed release in a separate tool directory and inspect its manifest. Run
+Before moving to a different tool directory, disconnect instruction files with the
+current tool version and stop its managed tasks. Keep the old checkout until these
+steps are verified. Obtain the new release and inspect its manifest. Run
 that version's installer against the existing knowledge root, preserving the applicable
 mode and optional repository. An omitted repository on a recognized installation retains
 its existing repository binding; omission does not silently turn off configured sync.
@@ -48,7 +53,10 @@ python3 scripts/install.py --root "/path/to/my-knowledge" --mode local
 An existing removable installation uses `--mode removable` with its actual mounted root.
 Changing repository identity or moving data is a separate, reviewed operation, not a
 side effect of choosing a mode. Re-run read, capture, correction and health checks.
-Check remote sync only when configured.
+Check remote sync only when configured. Reconnect each instruction file using the new
+tool version, then verify retrieval from a new Agent chat. A same-path update can
+refresh an unchanged owned block by running connect again; edited blocks require
+reconciliation before replacement.
 
 For schema-1 tool-only rollback, reinstall the previous reviewed tool directory and verify
 the same checks. A future schema migration requires a locked backup and an explicit
@@ -56,6 +64,10 @@ restore/compatibility procedure; merely switching code is not a data rollback. D
 point an older writer at a newer schema.
 
 ## Stop scheduling or uninstall
+
+Disconnect instruction files with `ak.py --root ROOT disconnect --instructions FILE`
+before uninstalling. The command preserves the surrounding project rules; modified
+or unverified blocks require reconciliation. Uninstall refuses outstanding connections.
 
 Scheduled maintenance is optional. Disable and verify any managed tasks that actually
 exist; an installation with no tasks needs no scheduler setup before uninstalling.
@@ -72,3 +84,9 @@ GitHub tools. Pausing scheduled jobs alone leaves normal foreground use availabl
 Interrupted first installs currently fail closed as unmanaged partial directories. Preserve
 their contents and inspect before retrying into a new empty root. No automatic destructive
 cleanup or migration is attempted. Multi-file install is not advertised as transactional.
+
+Interrupted disconnect and uninstall operations keep local recovery receipts.
+Retry the same command to finish. If the file changed after the planned removal,
+the operation preserves those changes and reports what needs reconciliation.
+Complete a pending uninstall before reinstalling. Repeated completed uninstall is
+safe only for the same verified installation owner.
