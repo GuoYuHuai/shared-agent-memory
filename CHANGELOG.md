@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 experimental candidate — 2026-10-28
+
+- Rename the public project to Shared Agent Memory. Existing knowledge formats, configuration names and connected directories remain compatible.
+- Check storage publication before installation. Use a native exclusive rename when hard links are unavailable; never replace an existing immutable record. macOS exFAT remains unsupported and now fails before creating an installation.
+- Check effective fetch and push destinations and isolate Git routing environment variables while retaining normal authentication and proxy configuration.
+- Use XDG state paths for new Linux installations, retain existing device identities, and share mount discovery between installation and cold-storage validation.
+- Add Linux filesystem UUID and Windows volume GUID bindings, with explicit runtime-only fallback when a persistent identity is unavailable.
+- Add Windows to hosted checks, clarify history-parser boundaries, and fix misplaced docstrings and unused code.
+
 ## 0.2.1 experimental candidate — 2026-10-28
 
 - Keep exact-title matches in search results and show matching excerpts for short queries. Treat `%` and `_` as literal search text.

@@ -19,7 +19,7 @@ class InstallationTests(unittest.TestCase):
         self.real_ismount=install.os.path.ismount
         self.mount_patch=mock.patch.object(install.os.path,'ismount',side_effect=lambda path: Path(path).resolve()==Path(self.temp.name).resolve() or self.real_ismount(path))
         self.mount_patch.start();self.addCleanup(self.mount_patch.stop)
-        self.volume_patch=mock.patch.object(install.device_identity,'mounted_volume_identity',return_value='sha256:'+'a'*64)
+        self.volume_patch=mock.patch.object(install.device_identity,'mounted_volume_binding',return_value={'identity':'sha256:'+'a'*64,'method':'fixture','stability':'persistent'})
         self.volume_patch.start();self.addCleanup(self.volume_patch.stop)
     def test_install_repeat_upgrade_uninstall_preserves_user_data(self):
         install.install(self.root,'example/knowledge','local')
@@ -400,14 +400,14 @@ class InstallationTests(unittest.TestCase):
         initial=install.install(self.root,None,'removable')['installation']
         self.assertEqual(initial['removable_volume']['volume_identity'],'sha256:'+'a'*64)
         marker=self.root/'.ai-knowledge/install.json';before=marker.read_bytes()
-        with mock.patch.object(install.device_identity,'mounted_volume_identity',return_value='sha256:'+'b'*64):
+        with mock.patch.object(install.device_identity,'mounted_volume_binding',return_value={'identity':'sha256:'+'b'*64,'method':'fixture','stability':'persistent'}):
             with self.assertRaisesRegex(ValueError,'another volume'):
                 install.install(self.root,None,'removable')
         self.assertEqual(marker.read_bytes(),before)
         self.assertFalse((self.root/'.ai-knowledge/backups').exists())
 
     def test_removable_rechecks_mount_before_creating_root(self):
-        with mock.patch.object(install.device_identity,'mounted_volume_identity',side_effect=['sha256:'+'a'*64,'sha256:'+'b'*64]):
+        with mock.patch.object(install.device_identity,'mounted_volume_binding',side_effect=[{'identity':'sha256:'+'a'*64,'method':'fixture','stability':'persistent'},{'identity':'sha256:'+'b'*64,'method':'fixture','stability':'persistent'}]):
             with self.assertRaisesRegex(ValueError,'changed during installation'):
                 install.install(self.root,None,'removable')
         self.assertFalse(self.root.exists())

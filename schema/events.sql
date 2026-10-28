@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS schema_meta (
     value TEXT NOT NULL
 );
 
+-- Bootstrap schema only. ingest_history.initialize_database() applies versioned,
+-- transactional migrations before use; do not open this file as a finished DB.
+-- This version describes the optional history store, not the knowledge schema.
 INSERT OR IGNORE INTO schema_meta(key, value)
 VALUES ('events_schema_version', '0');
 

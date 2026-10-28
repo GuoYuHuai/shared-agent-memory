@@ -18,7 +18,7 @@ queries. Indexed retrieval now preserves those matches and returns relevant exce
 
 The closed Basic Memory [permission-error issue](https://github.com/basicmachines-co/basic-memory/issues/1007)
 is another useful lesson: a failed scan must not be mistaken for an empty collection.
-Agent Knowledge now uses the same alias, scope and conflict handling when an index
+Shared Agent Memory now uses the same alias, scope and conflict handling when an index
 refresh is busy or fails. It reports incomplete retrieval separately. A record
 already saved to the ledger remains saved even if its index update fails; retrying
 the same record ID repairs the projection without duplicating the fact.
@@ -51,7 +51,7 @@ Tests: `test_github.mjs`, `test_github_parity.py`.
 
 MCP Memory Service [v12.4.0](https://github.com/doobidoo/mcp-memory-service/releases/tag/v12.4.0)
 checks peer protocol and schema compatibility before delta synchronization.
-Agent Knowledge uses Git, but needs the same precaution.
+Shared Agent Memory uses Git, but needs the same precaution.
 
 Before pulling or pushing, we inspect the committed knowledge manifest. An unknown
 data schema or a different knowledge-library identity stops synchronization while

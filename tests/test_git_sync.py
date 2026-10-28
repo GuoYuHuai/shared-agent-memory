@@ -16,6 +16,11 @@ def load_module():
     spec = importlib.util.spec_from_file_location("git_sync_under_test", str(path))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    # This suite exercises real Git against disposable local bare remotes.
+    # Production transports allow only HTTPS/SSH; transport-policy regression
+    # tests live separately and use the unmodified environment.
+    original_environment = module.git_environment
+    module.git_environment = lambda: dict(original_environment(), GIT_ALLOW_PROTOCOL="https:ssh:file")
     return module
 
 

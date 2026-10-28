@@ -1234,7 +1234,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     home = Path(args.home).expanduser().resolve()
     device_id = resolve_device_id(args.device_id, root, home)
     archive_root = root / ".kb-data" / "raw-history" / device_id
-    data_root = root / ".kb-data"
     try:
         cold_status = device_identity.validate_cold_data_root(
             root, home=home, require_bound_volume=True

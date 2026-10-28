@@ -1,8 +1,8 @@
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-# Agent Knowledge
+# Shared Agent Memory
 
-把项目配置、决定和工作习惯保存在 Agent 能复用的文件里。换一个工具，或隔一段时间继续项目时，它可以先查你已经交代过的内容。
+让不同 Agent、不同设备共用你已经交代过的配置、决定和偏好。换工具或换电脑时，接着工作的 Agent 可以查到这些记录和来源。
 
 例如：
 
@@ -16,7 +16,7 @@
 
 把仓库链接交给你的 Agent，让它帮你接入：
 
-> 帮我接入 Agent Knowledge：https://github.com/GuoYuHuai/agent-knowledge。请阅读 BOOTSTRAP.md；如果我已有知识库，优先接续使用。
+> 帮我接入 Shared Agent Memory：https://github.com/GuoYuHuai/shared-agent-memory。请阅读 BOOTSTRAP.md；如果我已有知识库，优先接续使用。
 
 [BOOTSTRAP.md](BOOTSTRAP.md) 提供具体步骤：查找已有安装，检查当前能使用的工具，连接知识目录，再实际验证保存、读取和更正。
 
@@ -34,7 +34,9 @@
 | 你自己的私有 GitHub 仓库 | 在能够访问仓库的设备和 Agent 之间共享选定的知识 |
 | 已挂载硬盘上的目录 | 把知识文件保存在你选择的存储设备上 |
 
-可以接续已有的 Agent Knowledge 知识库。公开项目存放工具，个人知识保存在你选择的位置。具体操作见[存储与接入说明](docs/local-storage.md)。
+已经通过本项目接入的知识库可以继续使用。公开项目存放工具，个人知识保存在你选择的位置。具体操作见[存储与接入说明](docs/local-storage.md)。
+
+安装器会先检查所选存储能否安全保存记录。macOS 上的 exFAT 移动盘目前无法通过检查；可以使用本地目录或 APFS 目录，需要跨系统共享时再连接私有 Git 仓库。
 
 本地工具需要 **Python 3.9+ 和 Git**。默认设置不需要额外的模型 API 或后台服务，也不会导入旧会话。历史导入和定时维护可以按需启用；关闭定时任务后，平常的查询和记录仍然可用。
 
@@ -43,8 +45,8 @@
 安装 Python 3.9+ 和 Git 后运行：
 
 ```sh
-git clone https://github.com/GuoYuHuai/agent-knowledge.git
-cd agent-knowledge
+git clone https://github.com/GuoYuHuai/shared-agent-memory.git
+cd shared-agent-memory
 python3 examples/local_demo.py
 ```
 
@@ -58,7 +60,7 @@ Agent 可以通过本地文件或 GitHub 工具使用知识库。不同产品使
 
 ## 适合我吗？
 
-如果一份简短的 Markdown 文件已经够用，可以继续用它。当你需要在多个 Agent 或设备之间交接，保留配置原值、查清决定的来源，或确保改过的信息不再被当成现状时，Agent Knowledge 会更有用。
+如果一份简短的 Markdown 文件已经够用，可以继续用它。当你需要在多个 Agent 或设备之间交接，保留配置原值、查清决定的来源，或确保改过的信息不再被当成现状时，Shared Agent Memory 会更有用。
 
 这里采用文本检索和明确的更正关系。如果你更需要语义搜索、知识图谱或现成的 MCP 服务，可以看看[其他方案](docs/choosing.md)。
 
@@ -72,6 +74,6 @@ Agent 可以通过本地文件或 GitHub 工具使用知识库。不同产品使
 - [升级与卸载](docs/upgrading.md)
 - [参与贡献](CONTRIBUTING.md)
 
-Agent Knowledge 目前是早期版本。可复现的测试结果和已知限制见[验证记录](docs/acceptance.md)。
+Shared Agent Memory 目前是早期版本。可复现的测试结果和已知限制见[验证记录](docs/acceptance.md)。
 
 采用 [MIT 许可](LICENSE)。

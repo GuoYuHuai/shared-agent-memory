@@ -11,7 +11,6 @@ import datetime as dt
 import hashlib
 import json
 import os
-import platform
 import re
 import sqlite3
 import subprocess
@@ -27,6 +26,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import device_identity
 import file_lock
 import workspace_lock
+import atomic_publish
 
 
 EXIT_OK = 0
@@ -695,13 +695,13 @@ def atomic_json_create(path: Path, payload: Dict[str, Any]) -> None:
             handle.write(serialized)
             handle.flush()
             os.fsync(handle.fileno())
-        # Publish a hard link only after the complete temporary file is durable.
-        # Unlike replace(), link() preserves immutable create-only semantics:
-        # an existing final path fails atomically instead of being overwritten.
-        os.link(temporary, path)
+        # Publish only the complete durable file. A filesystem without hard
+        # links uses an OS atomic no-replace rename, never exists + replace.
+        moved = atomic_publish.publish_noreplace(temporary, path)
         fsync_directory(path.parent)
-        temporary.unlink()
-        fsync_directory(path.parent)
+        if not moved:
+            temporary.unlink()
+            fsync_directory(path.parent)
     except FileExistsError as error:
         raise ConflictError("refusing to overwrite immutable record: %s" % path) from error
     finally:
@@ -4674,13 +4674,13 @@ def refresh_index_after_write(root: Path) -> str:
 
 
 def supersede(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
-    require_writable_schema(root)
     """Record an immutable supersession edge between two existing records.
 
     POLICY.md §4: the superseded record and its exact value are kept; the
     replacement relationship is expressed as a new ledger event, never by
     rewriting or deleting the old file.
     """
+    require_writable_schema(root)
     old_id = clean_scalar(args.old_id)
     new_id = clean_scalar(args.new_id)
     if not old_id or not new_id:
@@ -4810,13 +4810,13 @@ def forget_hot_locator_source(root: Path, path: Path) -> None:
 
 
 def resolve_candidate(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
-    require_writable_schema(root)
     """Accept or reject an inbox review candidate, keeping a ledger trail.
 
     Only the mutable inbox/candidates state file changes; the original ledger
     event stays immutable and a kind=candidate-resolution event records who
     decided what.  Rejected candidates are demoted in search, never deleted.
     """
+    require_writable_schema(root)
     candidate_id = clean_scalar(args.event_id)
     if not candidate_id:
         raise KBError("candidate event id is required")
@@ -5818,7 +5818,6 @@ def get_resource(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
             % (args.resource_id, ", ".join(str(path.relative_to(root)) for path, _ in matches))
         )
     path, record = matches[0]
-    kind = clean_scalar(record.get("kind", record.get("type")), "resource")
     credential = (
         is_credential_path(path.relative_to(root))
         or event_is_credential_resource(record)

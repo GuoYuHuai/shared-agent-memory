@@ -5,7 +5,7 @@ stable preferences, and can ensure your Agent reads the file, start there. Add
 sources and dated corrections when they help. A larger memory system should earn
 its setup and maintenance cost by solving a problem you actually encounter.
 
-Agent Knowledge is an experimental option for people who repeatedly hand work
+Shared Agent Memory is an experimental option for people who repeatedly hand work
 between Agents or devices and need exact configuration, provenance and explicit
 corrections. Files and immutable events remain authoritative; indexes can be
 rebuilt. Its local path uses Python and Git, with optional private Git sync. It
@@ -20,10 +20,10 @@ These alternatives also deserve consideration:
 | [Mem0](https://docs.mem0.ai/open-source/overview) | You are building an application and need programmatic memory operations, user scoping and configurable model/storage providers. | Application integration and the selected model, embedding and storage components. Its default quickstart uses model APIs; local providers can be configured. |
 
 Readable files, user-owned data and cross-Agent memory are not exclusive features
-of Agent Knowledge. Other projects offer stronger ready-made integrations and
+of Shared Agent Memory. Other projects offer stronger ready-made integrations and
 semantic retrieval. Choose them when those capabilities are the main requirement.
 
-Agent Knowledge currently relies on the Agent and its available tools to complete
+Shared Agent Memory currently relies on the Agent and its available tools to complete
 host integration. Writing an instruction file does not prove it loads in a new
 chat. Existing arbitrary Markdown directories need a reviewed migration; the
 installer automatically adopts only recognized knowledge repositories. Its core

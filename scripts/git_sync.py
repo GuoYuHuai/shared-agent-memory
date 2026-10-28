@@ -37,12 +37,27 @@ class SyncError(RuntimeError):
 
 
 def git_environment() -> Dict[str, str]:
-    environment = os.environ.copy()
+    # A host may launch us from a Git hook or with command-scoped configuration.
+    # Those routing variables must not override the explicitly selected root.
+    # Keep normal on-disk configuration (credentials, proxies, reviewed URL
+    # aliases) and the small set of authentication/identity environment options.
+    allowed = {
+        "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
+        "GIT_ASKPASS", "GIT_SSL_CAINFO", "GIT_SSL_CAPATH",
+        "GIT_SSH", "GIT_SSH_COMMAND", "GIT_SSH_VARIANT",
+        "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
+        "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE",
+    }
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith("GIT_") or key in allowed}
     environment.update(
         {
             "GIT_TERMINAL_PROMPT": "0",
             "GCM_INTERACTIVE": "Never",
-            "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=10",
+            # Let Git resolve explicit SSH programs/commands and core.sshCommand.
+            # Substituting OpenSSH here breaks identity flags and Windows Plink.
+            "SSH_ASKPASS_REQUIRE": "never",
+            "GIT_ALLOW_PROTOCOL": "https:ssh",
         }
     )
     return environment
@@ -54,12 +69,17 @@ def git(
     return subprocess.run(
         ["git", *arguments],
         cwd=str(root or ROOT),
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         timeout=timeout,
         check=False,
         env=git_environment(),
+        # No controlling terminal for an SSH password/host-key prompt. Keep
+        # configured command arguments untouched; Git owns their interpretation.
+        start_new_session=os.name != "nt",
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
     )
 
 
@@ -149,7 +169,9 @@ def configured_origin_status(
     remote: str = "origin", root: Optional[Path] = None
 ) -> Dict[str, Any]:
     policy = sync_policy(root)
-    result = git(["remote", "get-url", remote], root=root)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", remote):
+        raise SyncError("invalid-remote-name")
+    result = git(["remote", "get-url", "--all", remote], root=root)
     if result.returncode != 0:
         return {
             "ok": False,
@@ -158,7 +180,12 @@ def configured_origin_status(
             "status": "origin-missing",
             "expected_repository": policy["expected_repository"],
         }
-    valid = remote_matches_policy(result.stdout.strip(), policy)
+    urls = result.stdout.strip().splitlines()
+    valid = bool(urls) and all(remote_matches_policy(url, policy) for url in urls)
+    pushed = git(["remote", "get-url", "--push", "--all", remote], root=root)
+    push_urls = pushed.stdout.strip().splitlines()
+    valid = valid and pushed.returncode == 0 and bool(push_urls) and all(
+        remote_matches_policy(url, policy) for url in push_urls)
     return {
         "ok": valid,
         "configured": True,
@@ -166,6 +193,39 @@ def configured_origin_status(
         "status": "ready" if valid else "origin-identity-mismatch",
         "expected_repository": policy["expected_repository"],
     }
+
+
+def network_git(arguments: List[str], remote: str, root: Path) -> subprocess.CompletedProcess:
+    """Recheck both effective routes immediately before each network operation."""
+    status = configured_origin_status(remote, root)
+    if not status["ok"]:
+        raise SyncError(str(status["status"]))
+    return git(arguments, root=root)
+
+
+def literal_fetch_status(url: str, policy: Mapping[str, Any], root: Path) -> bool:
+    """Resolve a literal fetch URL without creating a remote or contacting it.
+
+    A new connection checks the effective push URLs after adding its origin,
+    before saving the connection. Existing sync checks both before any network.
+    """
+    result = git(["ls-remote", "--get-url", url], root=root)
+    return result.returncode == 0 and remote_matches_policy(result.stdout.strip(), policy)
+
+
+def fetch_local_history(root: Path, source: Path, revision: str) -> subprocess.CompletedProcess:
+    """The only file transport: import a known local commit into a temp probe."""
+    source = source.resolve()
+    result = git(["ls-remote", "--get-url", str(source)], root=root)
+    if result.returncode or result.stdout.strip() != str(source):
+        raise SyncError("local-history-url-rewritten")
+    environment = git_environment()
+    environment["GIT_ALLOW_PROTOCOL"] = "file"
+    return subprocess.run(
+        ["git", "fetch", "--quiet", "--no-tags", str(source), revision + ":refs/heads/local"],
+        cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        timeout=45, check=False, env=environment,
+    )
 
 
 def anonymous_repository_probe_arguments(policy: Mapping[str, Any]) -> List[str]:
@@ -258,13 +318,14 @@ def anonymous_git_probe_arguments(policy: Mapping[str, Any]) -> List[str]:
 
 def anonymous_git_probe_environment() -> Dict[str, str]:
     """Prevent the fallback probe from loading credentials or trace settings."""
-    environment = os.environ.copy()
+    environment = git_environment()
     environment.update(
         {
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_TERMINAL_PROMPT": "0",
             "GCM_INTERACTIVE": "Never",
+            "GIT_ALLOW_PROTOCOL": "https",
         }
     )
     for key in (
@@ -660,7 +721,7 @@ def sync(
             retryable=bool(privacy.get("retryable", True)),
         )
 
-    fetched = git(["fetch", "--prune", remote], root=work_root)
+    fetched = network_git(["fetch", "--prune", remote], remote, work_root)
     if fetched.returncode != 0:
         return failure("fetch-failed", branch, retryable=True)
 
@@ -671,7 +732,7 @@ def sync(
         # A missing configured branch is not evidence of a new repository.
         # Inspect every advertised ref, including other branches and tags,
         # before allowing the narrowly scoped first push.
-        refs = git(["ls-remote", "--refs", remote], root=work_root)
+        refs = network_git(["ls-remote", "--refs", remote], remote, work_root)
         if refs.returncode != 0:
             return failure("remote-refs-unavailable", branch, retryable=True)
         if refs.stdout.strip():
@@ -766,13 +827,13 @@ def sync(
         # Porcelain distinguishes an actual new branch from a concurrent
         # writer reaching the same commit before this ordinary, non-force push.
         push_arguments = ["push"] + (["--porcelain"] if not remote_has_branch else [])
-        result = git(
-            push_arguments + [remote, "HEAD:refs/heads/%s" % branch], root=work_root
+        result = network_git(
+            push_arguments + [remote, "HEAD:refs/heads/%s" % branch], remote, work_root
         )
         if result.returncode != 0 and remote_has_branch:
             # Another device may have pushed after our fetch. Retry exactly once
             # through a normal rebase; never force-push shared knowledge.
-            fetched = git(["fetch", "--prune", remote], root=work_root)
+            fetched = network_git(["fetch", "--prune", remote], remote, work_root)
             if fetched.returncode != 0:
                 return failure("push-race-fetch-failed", branch, retryable=True)
             if not remote_branch_exists(remote, branch, work_root):
@@ -848,8 +909,8 @@ def sync(
                     retryable=False,
                     **incident,
                 )
-            result = git(
-                ["push", remote, "HEAD:refs/heads/%s" % branch], root=work_root
+            result = network_git(
+                ["push", remote, "HEAD:refs/heads/%s" % branch], remote, work_root
             )
         if result.returncode != 0:
             return failure("push-failed" if remote_has_branch else "first-push-failed",

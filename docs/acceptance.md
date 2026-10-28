@@ -1,9 +1,32 @@
 # Experimental candidate acceptance — 2026-10-28
 
-Version: 0.2.1-experimental. This is a reviewable release candidate, not a universal
+Version: 0.2.2-experimental. This is a reviewable release candidate, not a universal
 compatibility certification. The independent public repository is
-[GuoYuHuai/agent-knowledge](https://github.com/GuoYuHuai/agent-knowledge).
+[GuoYuHuai/shared-agent-memory](https://github.com/GuoYuHuai/shared-agent-memory).
 Public history contains tool sources, documentation and fictional fixtures only.
+
+## 0.2.2 portability and transport checks
+
+The macOS full suite executed **496 tests: 495 passed and 1 Windows-only skip**
+in 170.734 seconds. Node connector contracts and the two-directory local demo
+also passed. These checks cover atomic create-only publication, storage capability
+probing, legacy device-state preservation, Linux XDG paths, volume identity fallbacks,
+Git URL rewrites, injected repository/index variables and existing SSH configuration.
+The Linux and Windows hosted matrix runs the full suite; its results must be read
+from the corresponding commit, not inferred from this local run.
+
+A real temporary 64 MiB exFAT filesystem on macOS 27.0.1 rejected both hard links
+and exclusive rename with ENOTSUP. The installer refused before creating its target,
+preserved an existing fixture and removed its probes. The image was unmounted and
+removed. macOS exFAT is therefore **not supported by this release**; mocked fallback
+tests do not change that result. Linux/Windows exFAT, physical drive handoff and NFS
+remain unverified. See [the review and evidence boundaries](portability-review.md).
+
+An independent source review with memories and user configuration disabled identified
+an SSH compatibility regression. The fix preserves Git's SSH command and variant
+selection; local executable fixtures verify identity arguments and precedence.
+The review's suggested Windows legacy-state migration did not apply: the preceding
+release already used the same Windows AppData location, as verified against its source.
 
 ## Earlier 0.1 checks retained as evidence
 

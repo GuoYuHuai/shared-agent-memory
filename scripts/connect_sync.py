@@ -98,9 +98,11 @@ def checked_git(arguments, root, reason, recovery, timeout=45):
     return result.stdout.strip()
 
 
-def remote_history(root, remote_url, branch, local_head):
+def remote_history(root, remote_url, branch, local_head, policy):
     """Inspect remote refs and common ancestry without fetching into the user repo."""
     recovery = 'Check Git authentication and connectivity, then retry connect-sync.'
+    if not git_sync.literal_fetch_status(remote_url, policy, root):
+        reject('origin-url-rewritten', 'Review Git URL rewrite settings before connecting this repository.')
     listing = checked_git(['ls-remote', '--refs', remote_url], root,
                           'remote-unreachable', recovery)
     refs = {}
@@ -119,9 +121,10 @@ def remote_history(root, remote_url, branch, local_head):
         probe = Path(directory)
         checked_git(['init', '--bare', '--quiet', str(probe)], root,
                     'history-probe-failed', recovery)
-        checked_git(['fetch', '--quiet', '--no-tags', str(root),
-                     local_head + ':refs/heads/local'], probe,
-                    'local-history-unavailable', 'Complete or repair the local Git history before retrying.')
+        if git_sync.fetch_local_history(probe, root, local_head).returncode:
+            reject('local-history-unavailable', 'Complete or repair the local Git history before retrying.')
+        if not git_sync.literal_fetch_status(remote_url, policy, probe):
+            reject('origin-url-rewritten', 'Review Git URL rewrite settings before connecting this repository.')
         checked_git(['fetch', '--quiet', '--no-tags', remote_url,
                      remote_ref + ':refs/heads/remote'], probe,
                     'remote-history-unavailable', recovery)
@@ -222,6 +225,9 @@ def _connect(root, repository, remote_url, private_checker):
     selected = remote_url or (origins[0] if origins else 'https://github.com/' + repository + '.git')
     if not valid_remote_url(selected, repository):
         reject('remote-url-mismatch', 'Use an HTTPS or git SSH URL on github.com for exactly the selected owner/repository, without embedded credentials.')
+    transport_policy = {'expected_repository': repository, 'allowed_ssh_hosts': ['github.com']}
+    if not git_sync.literal_fetch_status(selected, transport_policy, root):
+        reject('origin-url-rewritten', 'Review Git URL rewrite settings before connecting this repository.')
     if origins and remote_url and selected != origins[0]:
         reject('origin-change-not-supported', 'Keep the existing matching origin URL; this command does not replace remote configuration.')
     # A push URL or nonstandard refspec can otherwise send later sync elsewhere.
@@ -229,9 +235,9 @@ def _connect(root, repository, remote_url, private_checker):
     if push_urls.returncode == 0 or push_urls.returncode not in (0, 1):
         reject('custom-push-url', 'Review and remove the custom push URL before using the standard knowledge sync path.')
     if origins:
-        for args in (['remote', 'get-url', 'origin'], ['remote', 'get-url', '--push', 'origin']):
+        for args in (['remote', 'get-url', '--all', 'origin'], ['remote', 'get-url', '--push', '--all', 'origin']):
             effective = checked_git(args, root, 'origin-unreadable', 'Inspect the existing Git origin configuration.')
-            if not valid_remote_url(effective, repository):
+            if not effective or not all(valid_remote_url(url, repository) for url in effective.splitlines()):
                 reject('origin-url-rewritten', 'Review Git URL rewrite settings before connecting this repository.')
         refspec = git_sync.git(['config', '--get-all', 'remote.origin.fetch'], root=root)
         if refspec.returncode or refspec.stdout.strip() != '+refs/heads/*:refs/remotes/origin/*':
@@ -246,7 +252,7 @@ def _connect(root, repository, remote_url, private_checker):
         reject('metadata-identity-mismatch', 'Verify the exact owner/repository; repository redirects are not accepted automatically.')
     if private.get('archived') or private.get('disabled'):
         reject('remote-read-only', 'Choose an active private knowledge repository.')
-    history = remote_history(root, selected, branch, local_head)
+    history = remote_history(root, selected, branch, local_head, transport_policy)
     updated_config, updated_receipt = copy.deepcopy(config), copy.deepcopy(receipt)
     updated_config['hot_sync'].update({'enabled': True, 'expected_repository': repository})
     allowed = updated_config['hot_sync'].get('allowed_ssh_hosts')
@@ -275,9 +281,9 @@ def _connect(root, repository, remote_url, private_checker):
         if not origins:
             checked_git(['remote', 'add', 'origin', selected], root,
                         'origin-add-failed', 'Inspect local Git configuration and retry.')
-            for args in (['remote', 'get-url', 'origin'], ['remote', 'get-url', '--push', 'origin']):
+            for args in (['remote', 'get-url', '--all', 'origin'], ['remote', 'get-url', '--push', '--all', 'origin']):
                 effective = checked_git(args, root, 'origin-unreadable', 'Inspect local Git configuration and retry.')
-                if not valid_remote_url(effective, repository):
+                if not effective or not all(valid_remote_url(url, repository) for url in effective.splitlines()):
                     reject('origin-url-rewritten', 'Review Git URL rewrite settings before connecting this repository.')
         save_object(config_path, updated_config)
         save_object(marker, updated_receipt)

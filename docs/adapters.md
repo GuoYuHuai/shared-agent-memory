@@ -5,6 +5,12 @@ BOOTSTRAP with local tools, GitHub tools, project instructions, or the same fore
 proposal protocol. A parser supporting Codex or Claude history does not certify the
 product's current runtime, scheduler, or persistent rules.
 
+Optional raw-history import currently has parsers for Codex and Claude only.
+Other Agents can save and retrieve shared knowledge through the generic protocol
+without importing their conversation history. Adding a history parser also needs
+an explicit source-schema migration and the evidence listed below; changing the
+SQL source allowlist alone is insufficient.
+
 ## Foreground/model proposal runner
 
 Prepare an immutable source-linked batch on the local host:
@@ -34,7 +40,7 @@ policy and exact source evidence; the public template grants no access to author
 The Codex reference discovers `codex` on PATH or an explicit `AI_KNOWLEDGE_CODEX` executable.
 Model/reasoning values are user config, not hardcoded release assumptions. Actual current
 CLI flags, login, background availability and usage must be verified in the target environment.
-This candidate has not executed a live model or certified a Codex version. Do not advertise
+The semantic curation runner still needs a live model validation. Do not advertise
 `--disable memories` as proof of neutral isolation without inspecting that version's behavior.
 
 ## Community extensions

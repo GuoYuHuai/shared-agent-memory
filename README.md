@@ -1,8 +1,8 @@
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-# Agent Knowledge
+# Shared Agent Memory
 
-Save project setup, decisions and working preferences in files your agents can reuse. When you switch tools or return to a project, they can look up the details you have already explained.
+Shared memory across AI agents and devices. Keep project settings, decisions and preferences in files your agents can read. When you switch tools or computers, the next agent can look up what you have already explained.
 
 For example:
 
@@ -16,7 +16,7 @@ Each record keeps its source. When something changes, a correction preserves the
 
 Give your agent this repository link and ask it to set things up:
 
-> Help me set up Agent Knowledge: https://github.com/GuoYuHuai/agent-knowledge. Read BOOTSTRAP.md and reuse my existing knowledge folder if I have one.
+> Help me set up Shared Agent Memory: https://github.com/GuoYuHuai/shared-agent-memory. Read BOOTSTRAP.md and reuse my existing knowledge folder if I have one.
 
 [BOOTSTRAP.md](BOOTSTRAP.md) gives the agent the setup steps: find an existing installation, check the tools it can use, connect a knowledge folder, then test saving, reading and correcting a record.
 
@@ -34,7 +34,11 @@ Later, another connected agent can retrieve that preference with its source. Age
 | Your private GitHub repository | Sharing selected knowledge between devices and agents with repository access |
 | A folder on a mounted drive | Keeping the knowledge files on storage you choose |
 
-An existing Agent Knowledge repository can be reused. The public project contains the tools; your knowledge stays in your selected location. See [storage and setup](docs/local-storage.md) for details.
+Knowledge folders already set up with this project can be reused. The public project contains the tools; your knowledge stays in your selected location. See [storage and setup](docs/local-storage.md) for details.
+
+The installer checks whether the selected storage can safely save records. On
+macOS, exFAT drives currently fail this check; use a supported local or APFS
+directory, with private Git sync when you need to share across systems.
 
 Local tools require **Python 3.9+ and Git**. The default setup needs no additional model API or background service and does not import old conversations. History import and scheduled maintenance are optional. Turning off a schedule leaves normal reading and recording available.
 
@@ -43,8 +47,8 @@ Local tools require **Python 3.9+ and Git**. The default setup needs no addition
 With Python 3.9+ and Git installed:
 
 ```sh
-git clone https://github.com/GuoYuHuai/agent-knowledge.git
-cd agent-knowledge
+git clone https://github.com/GuoYuHuai/shared-agent-memory.git
+cd shared-agent-memory
 python3 examples/local_demo.py
 ```
 
@@ -58,7 +62,7 @@ The local workflow has been tested on macOS, and the GitHub workflow includes li
 
 ## Is this a good fit?
 
-If a short Markdown file already handles your preferences, keep using it. Agent Knowledge becomes more useful when you need several agents or devices to agree on current settings, trace a decision to its source, or stop using an outdated fact after a correction.
+If a short Markdown file already handles your preferences, keep using it. Shared Agent Memory becomes more useful when you need several agents or devices to agree on current settings, trace a decision to its source, or stop using an outdated fact after a correction.
 
 It uses text search and explicit corrections. If you want semantic search, a knowledge graph or a ready-made MCP service, see [other approaches](docs/choosing.md).
 
@@ -72,6 +76,6 @@ It uses text search and explicit corrections. If you want semantic search, a kno
 - [Upgrading and uninstalling](docs/upgrading.md)
 - [Contributing](CONTRIBUTING.md)
 
-Agent Knowledge is an early release. Reproducible test results and known limitations are in [the validation report](docs/acceptance.md).
+Shared Agent Memory is an early release. Reproducible test results and known limitations are in [the validation report](docs/acceptance.md).
 
 [MIT License](LICENSE).

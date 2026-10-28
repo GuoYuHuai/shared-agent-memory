@@ -172,7 +172,7 @@ def valid_job_receipt(job, payload):
 def run(root, job, timeout=60):
     if timeout <= 0:
         raise ValueError("timeout must be positive")
-    state = read(root, job)
+    read(root, job)
     directory(root).mkdir(parents=True, exist_ok=True)
     with (directory(root) / (job + ".lock")).open("a+") as lock:
         try:

@@ -1,4 +1,4 @@
-# AI Knowledge development
+# Shared Agent Memory development
 
 Read BOOTSTRAP.md for user onboarding; docs/protocol.md defines the shared contract.
 This repository contains tools and fictional fixtures, not the user's knowledge.

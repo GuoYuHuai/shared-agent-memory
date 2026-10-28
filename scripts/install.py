@@ -12,8 +12,10 @@ import sys
 import uuid
 import workspace_lock
 import device_identity
+import atomic_publish
+import git_sync
 
-VERSION = '0.2.1-experimental'
+VERSION = '0.2.2-experimental'
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 BEGIN = '<!-- AI-KNOWLEDGE:PUBLIC:BEGIN -->'
 END = '<!-- AI-KNOWLEDGE:PUBLIC:END -->'
@@ -122,25 +124,18 @@ def removable_volume(root):
     if not root.parent.is_dir():
         raise ValueError('removable storage parent is unavailable; mount it before installation')
     start=root if root.is_dir() else root.parent
-    mount=next((path for path in (start,*start.parents) if os.path.ismount(str(path))),None)
-    if mount is None:
-        raise ValueError('removable volume is not mounted')
-    system=device_identity.platform.system()
-    if system=='Windows':
-        system_drive=os.environ.get('SystemDrive') or os.environ.get('SYSTEMDRIVE')
-        if not system_drive:
-            raise ValueError('cannot identify system volume; removable installation stopped')
-        system_mount=Path(system_drive.rstrip('\\/')+os.sep).resolve()
-        if mount==system_mount:
-            raise ValueError('removable target resolves to the system volume')
-    elif mount==Path('/').resolve() or (system=='Darwin' and mount==Path('/System/Volumes/Data').resolve()):
-        raise ValueError('removable target resolves to the system volume; mount the drive first')
+    try:
+        mount=device_identity.external_mount_root(start)
+    except device_identity.DeviceIdentityError as error:
+        raise ValueError(str(error)) from error
     if root==mount:
         raise ValueError('choose a knowledge subdirectory within the mounted volume')
-    identity=device_identity.mounted_volume_identity(mount)
+    binding=device_identity.mounted_volume_binding(mount)
+    identity=binding["identity"]
     if not isinstance(identity,str) or not identity.startswith('sha256:'):
         raise ValueError('mounted volume identity is unavailable')
-    return {'mount_root':str(mount),'volume_identity':identity}
+    return {'mount_root':str(mount),'volume_identity':identity,
+            'identity_method':binding['method'],'identity_stability':binding['stability']}
 
 
 def verify_removable_binding(root,old,volume):
@@ -151,6 +146,26 @@ def verify_removable_binding(root,old,volume):
     if prior and prior.get('volume_identity')!=current['volume_identity']:
         raise ValueError('knowledge belongs to another volume; explicit reviewed migration is required')
     return current
+
+
+def probe_storage(root):
+    """Verify create-only publication before creating installation files."""
+    probe_root = next((path for path in (root, *root.parents) if path.exists()), None)
+    if probe_root is None or not probe_root.is_dir():
+        raise ValueError('knowledge storage parent is not an available directory: ' + str(root))
+    device = probe_root.stat().st_dev
+    try:
+        capability = atomic_publish.probe_directory(probe_root)
+    except OSError as error:
+        raise ValueError('knowledge storage cannot safely publish immutable records at ' + str(probe_root)
+                         + '; choose a filesystem with atomic create-only publication, or keep knowledge on a supported local disk and use private Git sync. '
+                         + str(error)) from error
+    if capability.get('ok') is not True or capability.get('overwrite_protection') != 'verified':
+        raise ValueError('knowledge storage publication was not verified at ' + str(probe_root))
+    current_parent = next((path for path in (root, *root.parents) if path.exists()), None)
+    if current_parent != probe_root or probe_root.stat().st_dev != device:
+        raise ValueError('knowledge storage changed during capability verification; retry after checking the mounted directory')
+    return {'directory': str(probe_root), 'device': device, **capability}
 
 
 def install(root, repository, mode):
@@ -198,7 +213,6 @@ def install(root, repository, mode):
         except (OSError,KeyError,ValueError) as error:
             raise ValueError('non-empty unmanaged root; use a new directory or reviewed migration') from error
     if (root / '.git').exists():
-        import git_sync
         remote = git_sync.value(['remote','get-url','origin'], root=root)
         policy = {'expected_repository':repository,'allowed_ssh_hosts':['github.com']}
         if remote and (not repository or not git_sync.remote_matches_policy(remote,policy)):
@@ -207,14 +221,19 @@ def install(root, repository, mode):
             raise ValueError('existing clone needs a matching origin before attachment')
     if volume is not None:
         verify_removable_binding(root,old,volume)
+    storage_capabilities = probe_storage(root)
+    if volume is not None:
+        verify_removable_binding(root,old,volume)
     root.mkdir(parents=True, exist_ok=True)
+    if root.stat().st_dev != storage_capabilities['device']:
+        raise ValueError('knowledge storage changed after capability verification; no installation files were written')
     if not (root/'.git').exists():
-        subprocess.run(['git','init','-b','main',str(root)],check=True,capture_output=True)
-    head = subprocess.run(['git','-C',str(root),'rev-parse','--verify','HEAD'],capture_output=True)
+        subprocess.run(['git','init','-b','main',str(root)],check=True,capture_output=True,env=git_sync.git_environment())
+    head = subprocess.run(['git','-C',str(root),'rev-parse','--verify','HEAD'],capture_output=True,env=git_sync.git_environment())
     if head.returncode:
         subprocess.run(['git','-C',str(root),'-c','user.name=AI Knowledge',
                         '-c','user.email=knowledge@localhost','commit','--allow-empty',
-                        '-m','Initialize empty knowledge history'],check=True,capture_output=True)
+                        '-m','Initialize empty knowledge history'],check=True,capture_output=True,env=git_sync.git_environment())
     with workspace_lock.acquire(root):
         # Re-read after taking the lock, so concurrent installation cannot lose state.
         if (root/'.ai-knowledge/uninstall-pending.json').exists():
@@ -263,6 +282,7 @@ def install(root, repository, mode):
         manifest = {'tool_version':VERSION,'data_schema':'1','tool_root':str(TOOL_ROOT),
                     'knowledge_root':str(root),'repository':repository,'mode':mode,
                     'removable_volume':volume,
+                    'storage_capabilities':storage_capabilities,
                     'block_hash':digest(new_block),'managed_rules':['AGENTS.md'],
                     'tasks':old.get('tasks',[]) if same_binding else [],
                     **owner,
@@ -280,10 +300,10 @@ def install(root, repository, mode):
         if not old:
             files=['MANIFEST.json','POLICY.md','AGENTS.md','.gitignore','config/kb.json',
                    'schema/knowledge.sql','schema/events.sql']
-            subprocess.run(['git','-C',str(root),'add','--',*files],check=True,capture_output=True)
+            subprocess.run(['git','-C',str(root),'add','--',*files],check=True,capture_output=True,env=git_sync.git_environment())
             subprocess.run(['git','-C',str(root),'-c','user.name=AI Knowledge',
                             '-c','user.email=knowledge@localhost','commit','-m',
-                            'Initialize user knowledge configuration'],check=True,capture_output=True)
+                            'Initialize user knowledge configuration'],check=True,capture_output=True,env=git_sync.git_environment())
     return {'ok':True,'installation':manifest,'repeat_install':bool(old),'attached_existing':adopted}
 
 def uninstall_rule_text(path):
@@ -438,7 +458,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--root',type=Path,required=True)
     p.add_argument('--repository')
-    p.add_argument('--mode',choices=['local','github','removable'],default='local')
+    p.add_argument('--mode',choices=['local','github','removable'],default='local',
+                   help='local by default; removable verifies a mounted volume; github is a compatibility alias for local with --repository')
     p.add_argument('--uninstall',action='store_true')
     args=p.parse_args()
     try:

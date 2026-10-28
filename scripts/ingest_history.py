@@ -14,11 +14,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import platform
 import re
-import socket
 import sqlite3
-import subprocess
 import sys
 import uuid
 import zipfile

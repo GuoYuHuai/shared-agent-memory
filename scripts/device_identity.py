@@ -17,7 +17,6 @@ from typing import Any, Dict, Mapping, Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VOLUMES_ROOT = Path("/Volumes")
 VALID_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 VALID_SHA256 = re.compile(r"^[0-9A-Fa-f]{64}$")
 VALID_NORMALIZED_VOLUME_IDENTITY = re.compile(r"^sha256:[0-9A-Fa-f]{64}$")
@@ -65,14 +64,18 @@ def local_state_path(root: Path = ROOT, home: Optional[Path] = None) -> Path:
             / knowledge_base_id(root)
             / "device.json"
         )
-    return (
-        local_home
-        / "Library"
-        / "Application Support"
-        / "AI-Knowledge"
-        / knowledge_base_id(root)
-        / "device.json"
-    )
+    legacy = local_home / "Library" / "Application Support" / "AI-Knowledge" / knowledge_base_id(root) / "device.json"
+    if platform.system() == "Linux":
+        # Existing installations keep their bound identity and adjacent task
+        # receipts in place. Do not silently move state during an upgrade.
+        if legacy.exists() or legacy.is_symlink():
+            return legacy
+        configured = os.environ.get("XDG_STATE_HOME", "").strip() if home is None else ""
+        # XDG requires absolute paths; invalid relative values are ignored.
+        state_root = Path(configured) if configured and Path(configured).is_absolute() else local_home / ".local" / "state"
+        return state_root / "AI-Knowledge" / knowledge_base_id(root) / "device.json"
+    return legacy
+
 
 
 def platform_material() -> str:
@@ -161,30 +164,96 @@ def marker_volume_identity(value: Any) -> Optional[str]:
     return normalize_volume_identity(str(value)) if value else None
 
 
+def external_mount_root(target: Path) -> Path:
+    """Find an actual mounted non-system ancestor on the current platform."""
+    target = target.expanduser().resolve()
+    mount = next((path for path in (target, *target.parents)
+                  if os.path.ismount(str(path))), None)
+    if mount is None:
+        raise DeviceIdentityError("external volume is not mounted")
+    system = platform.system()
+    if system == "Windows":
+        system_drive = os.environ.get("SystemDrive") or os.environ.get("SYSTEMDRIVE")
+        if not system_drive:
+            raise DeviceIdentityError("cannot identify system volume")
+        system_mount = Path(system_drive.rstrip("\\/") + os.sep).resolve()
+        is_system = mount == system_mount
+    else:
+        is_system = mount == Path("/").resolve() or (
+            system == "Darwin" and mount == Path("/System/Volumes/Data").resolve())
+    if is_system:
+        raise DeviceIdentityError("external target resolves to the system volume; mount the drive first")
+    return mount
+
+
+def windows_volume_guid(mount: Path, kernel: Any = None) -> str:
+    """Read the OS volume GUID without persisting a drive letter as identity."""
+    import ctypes
+    from ctypes import wintypes
+    if kernel is None:
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    query = kernel.GetVolumeNameForVolumeMountPointW
+    query.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+    query.restype = wintypes.BOOL
+    output = ctypes.create_unicode_buffer(64)
+    path = str(mount).rstrip("\\/") + "\\"
+    if not query(path, output, len(output)):
+        raise OSError("cannot read Windows volume GUID")
+    match = re.fullmatch(r"\\\\\?\\Volume\{([0-9A-Fa-f-]{36})\}\\", output.value)
+    if not match:
+        raise ValueError("invalid Windows volume GUID")
+    return str(uuid.UUID(match.group(1))).lower()
+
+
+def mounted_volume_binding(mount: Path) -> Dict[str, str]:
+    """Return an identity plus its provenance and remount stability boundary."""
+    system = platform.system()
+    value = None
+    method = "device-number"
+    try:
+        if system == "Darwin":
+            executable = shutil.which("diskutil")
+            if executable is None and Path("/usr/sbin/diskutil").is_file():
+                executable = "/usr/sbin/diskutil"
+            if executable:
+                result = subprocess.run([executable, "info", "-plist", str(mount)],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                    check=False, timeout=10)
+                payload = plistlib.loads(result.stdout) if result.returncode == 0 else {}
+                if isinstance(payload, dict):
+                    value = payload.get("VolumeUUID") or payload.get("APFSVolumeUUID")
+                    method = "diskutil-volume-uuid"
+        elif system == "Linux":
+            executable = shutil.which("findmnt")
+            if executable:
+                result = subprocess.run([executable, "--json", "--first-only", "--mountpoint", str(mount),
+                                         "--output", "TARGET,UUID"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                    check=False, timeout=10)
+                payload = json.loads(result.stdout) if result.returncode == 0 else {}
+                entries = payload.get("filesystems", []) if isinstance(payload, dict) else []
+                if len(entries) == 1 and isinstance(entries[0], dict):
+                    entry = entries[0]
+                    if (isinstance(entry.get("target"), str) and Path(entry["target"]).resolve() == mount.resolve()
+                            and isinstance(entry.get("uuid"), str)
+                            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", entry["uuid"])):
+                        value = "linux-filesystem-uuid:" + entry["uuid"].lower()
+                        method = "linux-filesystem-uuid"
+        elif system == "Windows":
+            value = "windows-volume-guid:" + windows_volume_guid(mount)
+            method = "windows-volume-guid"
+    except (OSError, ValueError, TypeError, AttributeError, subprocess.SubprocessError, plistlib.InvalidFileException):
+        value = None
+    if isinstance(value, str) and value.strip():
+        return {"identity": normalize_volume_identity(value), "method": method, "stability": "persistent"}
+    # Preserve the legacy hash while making the weaker guarantee visible.
+    return {"identity": normalize_volume_identity("st_dev:%d" % mount.stat().st_dev),
+            "method": "device-number", "stability": "runtime-only"}
+
+
 def mounted_volume_identity(mount: Path) -> str:
-    """Return a stable, non-secret identity for a mounted volume."""
-    executable = shutil.which("diskutil")
-    if executable is None and Path("/usr/sbin/diskutil").is_file():
-        executable = "/usr/sbin/diskutil"
-    if executable:
-        result = subprocess.run(
-            [executable, "info", "-plist", str(mount)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        if result.returncode == 0:
-            try:
-                payload = plistlib.loads(result.stdout)
-            except Exception:
-                payload = {}
-            if isinstance(payload, dict):
-                value = payload.get("VolumeUUID") or payload.get("APFSVolumeUUID")
-                if value:
-                    return normalize_volume_identity(str(value))
-    # Non-macOS tests and unusual mounts still get a runtime mount binding.  On
-    # macOS APFS the VolumeUUID path above is expected and remains stable.
-    return normalize_volume_identity("st_dev:%d" % mount.stat().st_dev)
+    """Compatibility accessor; use mounted_volume_binding for evidence metadata."""
+    return mounted_volume_binding(mount)["identity"]
 
 
 def validate_cold_data_root(
@@ -209,11 +278,8 @@ def validate_cold_data_root(
     if not target.is_dir() or target.is_symlink():
         return {"valid": False, "mode": "external", "reason": "cold-data-unavailable"}
     try:
-        relative = target.relative_to(VOLUMES_ROOT)
-        mount = VOLUMES_ROOT / relative.parts[0]
-    except (ValueError, IndexError):
-        return {"valid": False, "mode": "external", "reason": "cold-data-not-under-volumes"}
-    if not os.path.ismount(str(mount)):
+        mount = external_mount_root(target)
+    except DeviceIdentityError:
         return {"valid": False, "mode": "external", "reason": "cold-data-volume-not-mounted"}
     marker = target.with_name(target.name + ".identity.json")
     if not marker.is_file() or marker.is_symlink():
@@ -270,7 +336,8 @@ def validate_cold_data_root(
             "reason": "cold-data-volume-identity-invalid",
         }
     try:
-        live_uuid = mounted_volume_identity(mount)
+        binding = mounted_volume_binding(mount)
+        live_uuid = binding["identity"]
     except (OSError, TypeError, ValueError):
         return {
             "valid": False,
@@ -305,6 +372,8 @@ def validate_cold_data_root(
         "knowledge_base_id": expected_kb,
         "volume_identity": live_volume,
         "identity_marker": str(marker),
+        "volume_identity_method": binding["method"],
+        "volume_identity_stability": binding["stability"],
     }
 
 
@@ -334,13 +403,13 @@ def read_state(root: Path = ROOT, home: Optional[Path] = None) -> Optional[Dict[
     saved_fingerprint = parsed.get("platform_fingerprint")
     if saved_fingerprint is None:
         # Legacy states can only be upgraded without ambiguity when their id was
-        # deterministically derived from this Mac.  A custom id without a bound
+        # deterministically derived from this computer.  A custom id without a bound
         # fingerprint might have been copied from another machine.
         if parsed["id"] != derived_id():
-            raise DeviceIdentityError("legacy local device state is not bound to this Mac")
+            raise DeviceIdentityError("legacy local device state is not bound to this computer")
         parsed["identity_upgrade_required"] = True
     elif not isinstance(saved_fingerprint, str) or saved_fingerprint != current_fingerprint:
-        raise DeviceIdentityError("local device state belongs to another Mac")
+        raise DeviceIdentityError("local device state belongs to another computer")
     return parsed
 
 
@@ -358,7 +427,7 @@ def resolve_device_id(
                 raise DeviceIdentityError("device id override conflicts with the bound local identity")
             return requested_id
         if requested_id != derived_id():
-            raise DeviceIdentityError("a new device id must be derived from and bound to this Mac")
+            raise DeviceIdentityError("a new device id must be derived from and bound to this computer")
         return requested_id
     return state["id"] if state else derived_id()
 
@@ -395,7 +464,7 @@ def write_state(
     if previous is not None and previous["id"] != normalized_id:
         raise DeviceIdentityError("refusing to replace the bound local device identity")
     if previous is None and normalized_id != derived_id():
-        raise DeviceIdentityError("a new device id must be derived from and bound to this Mac")
+        raise DeviceIdentityError("a new device id must be derived from and bound to this computer")
     payload: Dict[str, Any] = dict(previous or {})
     payload.pop("identity_upgrade_required", None)
     payload.update(

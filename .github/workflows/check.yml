@@ -2,13 +2,23 @@ name: contracts
 on: [push, pull_request]
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
     steps:
-      - uses: actions/checkout@v4
-      - name: Core and adapter contracts
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          python3 -m unittest discover -s tests -v
-          node tests/test_github.mjs
-          python3 scripts/release_check.py
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Python contracts
+        run: python -m unittest discover -s tests -v
+      - name: GitHub connector contracts
+        run: node tests/test_github.mjs
+      - name: Public package check
+        run: python scripts/release_check.py

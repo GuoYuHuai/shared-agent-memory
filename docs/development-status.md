@@ -1,6 +1,6 @@
 # Current capabilities and ongoing work
 
-Agent Knowledge is experimental. The local command interface supports saving,
+Shared Agent Memory is experimental. The local command interface supports saving,
 retrieving and correcting knowledge, connecting a host instruction file, and
 optionally synchronizing through a private GitHub repository.
 
@@ -19,6 +19,11 @@ Areas for further work include:
 - Testing synchronization and removable storage between physical devices.
 - Improving retrieval across different ways of expressing the same question.
 - Extending optional history import and maintenance with clear progress and recovery.
+- Validating physical removable-storage handoffs and network-filesystem behavior.
+- Extracting focused modules from the large core files while preserving existing contracts.
+
+The [portability review](portability-review.md) records current filesystem limits,
+Git routing checks and the distinction between generic capture and history parsers.
 
 See [compatibility](compatibility.md) for current environment coverage and
 [acceptance](acceptance.md) for executed checks. Contributions should include a

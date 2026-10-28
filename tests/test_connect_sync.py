@@ -46,10 +46,13 @@ class ConnectSyncTests(unittest.TestCase):
         # Only change the destination of network-reading commands. Ref listing,
         # object fetch, ancestry decisions, commits and rollback use real Git.
         args = list(arguments)
-        if args and args[0] in ('ls-remote', 'fetch'):
+        if args and args[0] in ('ls-remote', 'fetch') and '--get-url' not in args:
             args = [str(self.remote) if value in (self.url, 'git@github.com:example/knowledge.git')
                     else value for value in args]
-        return self.real_git(args, timeout=timeout, root=root)
+        environment = connect_sync.git_sync.git_environment()
+        environment['GIT_ALLOW_PROTOCOL'] = 'https:ssh:file'
+        with mock.patch.object(connect_sync.git_sync, 'git_environment', return_value=environment):
+            return self.real_git(args, timeout=timeout, root=root)
 
     def connect(self, **kwargs):
         return connect_sync.connect(self.root, self.repository, private_checker=self.private, **kwargs)

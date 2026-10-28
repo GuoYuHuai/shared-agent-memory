@@ -4349,7 +4349,6 @@ def validate_disposition(
     the batch. This is a pure function of the batch directory; it never touches
     the semantic database.
     """
-    manifest = json.loads((batch / "manifest.json").read_text(encoding="utf-8"))
     path = batch / DISPOSITION_FILE
     if not path.is_file():
         raise DispositionError("disposition-missing")
