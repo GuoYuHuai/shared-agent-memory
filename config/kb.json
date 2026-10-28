@@ -2,6 +2,8 @@
   "data_root": ".kb-data",
   "history_database": ".kb-data/history.sqlite",
   "checkpoint_directory": ".kb-data/checkpoints",
+  "storage_profile": "lightweight",
+  "retrieval": {"include_raw_history": false},
   "history_capture": {
     "enabled": false
   },

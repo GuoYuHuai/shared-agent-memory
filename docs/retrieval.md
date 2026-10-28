@@ -1,10 +1,12 @@
 # Retrieval and freshness
 
-Use `python3 scripts/retrieve.py --root "$KNOWLEDGE_ROOT" 'query' --scope project:atlas` for the foreground workflow. Tool and knowledge roots may differ; the disposable SQLite schema falls back to the tool distribution. The knowledge root must be an initialized private checkout. The public project itself is not a user's knowledge root.
+Use `python3 scripts/retrieve.py --root "$KNOWLEDGE_ROOT" 'query' --scope project:atlas` for the foreground workflow. Tool and knowledge roots may differ; the disposable SQLite schema falls back to the tool distribution. The local knowledge root is an initialized Git knowledge directory selected by the user. It may be on this device or removable storage; a GitHub account and remote are optional. The public tool checkout itself is not a user's knowledge root.
 
-The foreground entry point refreshes the disposable local index, expands configured aliases, and performs at most one pull of an already configured private remote when the snapshot is stale or there is no current evidence. Successful pull is followed by one local retry. It never creates a remote, supplies credentials, commits, pushes, or resolves conflicts. Existing identity, privacy, clean-worktree and rebase checks remain active. Offline and failed-sync results retain usable local evidence and explicitly bound the conclusion to the local snapshot. `--offline` prevents network calls. Freshness defaults to 3,600 seconds and is configurable under `retrieval.freshness_seconds`.
+The foreground entry point refreshes the disposable index of the selected knowledge, expands configured aliases, and performs at most one pull of an already configured private remote when the snapshot is stale or there is no current evidence. It does not scan conversation sources, backfill old conversations or archive raw history. Without a configured remote, it queries local knowledge and reports freshness as `not-configured`; this is a usable local mode, not a failed installation. Successful pull is followed by one local retry. It never creates a remote, supplies credentials, commits, pushes, or resolves conflicts. Existing identity, privacy, clean-worktree and rebase checks remain active. Offline and failed-sync results retain usable local evidence and explicitly bound the conclusion to the local snapshot. `--offline` prevents network calls. Freshness defaults to 3,600 seconds and is configurable under `retrieval.freshness_seconds`.
 
 `kb.py search` remains a read-only lookup command. It does not claim the remote is current. To discover records added after the SQLite index was last refreshed, use the foreground entry point or run `kb.py update-index` first. A cold data volume that is unavailable is never silently replaced; Git-hot search continues and raw-history access is reported separately.
+
+Default installation is lightweight. Larger history collections and their indexes are separate opt-in work scoped by the user. A removable-storage mode or a local directory test alone is not evidence of successful movement between two physical devices.
 
 ## Current evidence versus historical evidence
 
@@ -18,7 +20,7 @@ Use a stable `fact_key` for assertions that describe the same property in the sa
 
 ## Aliases and bounds
 
-Configure exact scope aliases and query substitutions in the private configuration:
+Configure exact scope aliases and query substitutions in the user knowledge configuration:
 
 ```json
 {

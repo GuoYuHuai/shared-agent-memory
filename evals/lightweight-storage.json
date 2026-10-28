@@ -1,0 +1,18 @@
+{
+  "environment": "macOS local temporary directory",
+  "fixture": "10 short fictional facts; includes local Git metadata and hot index",
+  "initial": {
+    "file_bytes": 51487,
+    "files": 45,
+    "raw_history_database_exists": false
+  },
+  "after_10_records": {
+    "file_bytes": 419315,
+    "files": 76,
+    "raw_history_database_exists": false
+  },
+  "sync_status": "local-only",
+  "remote_attempts": 0,
+  "retention": "TemporaryDirectory removed in finally; no raw history scanned",
+  "limitation": "illustrative measurement, not a quota or universal storage forecast"
+}

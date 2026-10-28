@@ -358,8 +358,8 @@ def repository_privacy_status(
     return privacy
 
 
-def ensure_local_bot_identity(root: Optional[Path] = None) -> Dict[str, Any]:
-    policy = sync_policy(root)
+def ensure_local_bot_identity(root: Optional[Path] = None, identity_policy: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    policy = sync_policy(root) if identity_policy is None else identity_policy
     configured = []
     for key, policy_key in (
         ("user.name", "bot_user_name"),

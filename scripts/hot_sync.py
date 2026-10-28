@@ -198,6 +198,15 @@ def _synchronize(no_push: bool) -> Dict[str, object]:
                 "skipped": "sync-already-running",
             }
         try:
+            config_path = ROOT / "config/kb.json"
+            config = json.loads(config_path.read_text()) if config_path.is_file() else {}
+            if config.get("hot_sync", {}).get("enabled") is False:
+                identity = git_sync.ensure_local_bot_identity(ROOT, identity_policy={
+                    "bot_user_name": "AI Knowledge", "bot_user_email": "knowledge@localhost"})
+                commit = commit_canonical()
+                return {"ok": True, "action": "hot-sync", "status": "local-only",
+                        "remote_verified": False, "sync": {"skipped": "disabled-by-user", "pushed": False},
+                        "identity": identity, **commit}
             origin = git_sync.configured_origin_status("origin", ROOT)
             if not origin.get("ok"):
                 return {

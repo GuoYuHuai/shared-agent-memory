@@ -5,13 +5,14 @@ import sys
 import tempfile
 import unittest
 import uuid
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_module():
-    path = ROOT / "scripts" / "workspace_lock.py"
+def load_module(script="workspace_lock"):
+    path = ROOT / "scripts" / (script + ".py")
     name = "workspace_lock_test_%s" % uuid.uuid4().hex
     spec = importlib.util.spec_from_file_location(name, str(path))
     module = importlib.util.module_from_spec(spec)
@@ -20,6 +21,41 @@ def load_module():
 
 
 class WorkspaceLockTests(unittest.TestCase):
+    def test_missing_root_is_not_created(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'missing-drive' / 'knowledge'
+            with self.assertRaisesRegex(FileNotFoundError, 'knowledge-root-unavailable'):
+                with module.acquire(root):
+                    self.fail('must not acquire')
+            self.assertFalse(root.parent.exists())
+
+    def test_root_disappearing_after_precheck_is_not_recreated(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'knowledge'
+            root.mkdir()
+            original = Path.is_dir
+            def disappears(path):
+                result = original(path)
+                if path == root:
+                    root.rmdir()
+                return result
+            with mock.patch.object(Path, 'is_dir', disappears):
+                with self.assertRaises(FileNotFoundError):
+                    with module.acquire(root):
+                        self.fail('must not acquire')
+            self.assertFalse(root.exists())
+
+    def test_existing_root_can_create_its_lock_directory(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with module.acquire(root) as handle:
+                self.assertFalse(handle.closed)
+                self.assertTrue(module.lock_path(root).is_file())
+            self.assertTrue(handle.closed)
+
     def test_second_process_fails_fast_while_workspace_is_held(self):
         module = load_module()
         with tempfile.TemporaryDirectory() as directory:
@@ -56,6 +92,42 @@ class WorkspaceLockTests(unittest.TestCase):
                 for stream in (holder.stdin, holder.stdout, holder.stderr):
                     if stream:
                         stream.close()
+
+
+class StorageLockTests(unittest.TestCase):
+    def test_missing_root_is_not_created(self):
+        module = load_module('storage_lock')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'missing-drive' / 'knowledge'
+            with self.assertRaisesRegex(FileNotFoundError, 'knowledge-root-unavailable'):
+                with module.acquire(root, exclusive=True):
+                    self.fail('must not acquire')
+            self.assertFalse(root.parent.exists())
+
+    def test_existing_root_acquires_and_releases_storage_lock(self):
+        module = load_module('storage_lock')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with module.acquire(root, exclusive=True) as handle:
+                self.assertFalse(handle.closed)
+            self.assertTrue(handle.closed)
+
+    def test_root_disappearing_during_lock_setup_is_not_recreated(self):
+        module = load_module('storage_lock')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'knowledge'
+            root.mkdir()
+            original = Path.is_dir
+            def disappears(path):
+                result = original(path)
+                if path == root:
+                    root.rmdir()
+                return result
+            with mock.patch.object(Path, 'is_dir', disappears):
+                with self.assertRaises(FileNotFoundError):
+                    with module.acquire(root, exclusive=True):
+                        self.fail('must not acquire')
+            self.assertFalse(root.exists())
 
 
 if __name__ == "__main__":

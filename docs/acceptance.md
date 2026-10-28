@@ -1,11 +1,13 @@
 # Experimental candidate acceptance — 2026-10-28
 
 Version: 0.1.0-experimental. This is a reviewable release candidate, not a universal
-compatibility certification. No public repository has been created or made visible.
+compatibility certification. The independent public repository is
+[GuoYuHuai/agent-knowledge](https://github.com/GuoYuHuai/agent-knowledge).
+The original private knowledge repository remains private and is not its Git ancestor.
 
 ## Executed checks
 
-- Full Python suite: **284 tests run, 283 passed, 1 platform skip**, 93.073 seconds.
+- Full Python suite: **317 tests run, 316 passed, 1 platform skip**, 106.908 seconds.
   Command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -q`.
 - `node tests/test_github.mjs`: connector contracts pass, including read-only proposals,
   incomplete enumeration, snapshot churn, schema rejection, readback scope, ID conflict,
@@ -26,7 +28,8 @@ compatibility certification. No public repository has been created or made visib
   or reduction in user follow-up questions has been measured.
 
 Host: macOS 27.0.1 arm64; Python 3.9.6; Git 2.54.0 (Apple Git-157); Node 24.18.0.
-GitHub-hosted CI is provided but has not run because this candidate has not been published.
+GitHub-hosted results are recorded in the repository's Actions history; local tests do
+not establish hosted CI success.
 
 ## Requirement matrix
 
@@ -85,5 +88,21 @@ leases, automatic oversized-event splitting and schema migration remain explicit
 work. Weekly semantic knowledge review is a pending workflow, not an implemented autonomous
 success. No additional model service or subscription was provisioned.
 
-Run `python3 scripts/release_check.py` before packaging. A release owner should review
-these limits, the proposed MIT license, and the public repository name before publishing.
+Run `python3 scripts/release_check.py` before packaging. Sources use the MIT license;
+review these evidence limits before making additional compatibility claims.
+
+## Lightweight and portable defaults
+
+New installations do not collect raw conversations or enable background model work.
+Local-only capture, local commit and retrieval run without a GitHub account or remote.
+An illustrative empty installation used 51,487 file bytes; ten short fictional records,
+local Git and the disposable hot index used 419,315 bytes. No history database was created
+and retrieval made zero remote attempts. See `evals/lightweight-storage.json`; these are
+fixture measurements, not storage quotas or predictions for arbitrary collections.
+
+Additional source review with memories disabled identified two portable-state issues:
+an existing empty mount-point directory could be mistaken for an available disk, and a
+copied freshness timestamp could be trusted on another device. The implementation now
+checks mounted-volume evidence and binds retrieval freshness to device, knowledge root,
+repository, origin, branch and snapshot. Directory-copy/device fixtures cover reattachment;
+physical disk and cross-device validation remain explicitly pending.

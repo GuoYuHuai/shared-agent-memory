@@ -43,6 +43,76 @@ class PublicRetrievalTests(unittest.TestCase):
             setattr(args, k, v)
         return kb.run(args)
 
+    def test_existing_raw_history_is_excluded_without_opt_in_for_new_config(self):
+        import ingest_history
+        self.event('curated', 'marker curated fact')
+        kb.init_knowledge_base(self.root)
+        connection = ingest_history.initialize_database(self.root / '.kb-data/history.sqlite')
+        try:
+            connection.execute("""INSERT INTO source_events(event_hash,source_device_id,source,source_path,source_offset,source_line,thread_id,event_id,role,event_type,event_timestamp,cwd,content,raw_json,ingested_at)
+                VALUES ('fictional-history','device-a','codex','fictional.jsonl',0,1,'thread-atlas','event-a','user','message','2026-01-01T00:00:00Z','project:atlas','marker raw history','{}','2026-01-01T00:00:00Z')""")
+            connection.commit()
+        finally:
+            connection.close()
+        self.config['retrieval']['include_raw_history'] = False
+        self.write_config()
+        excluded = self.search('marker')
+        self.assertFalse(excluded['raw_history_included'])
+        self.assertEqual([r['id'] for r in excluded['results']], ['curated'])
+        self.config['retrieval']['include_raw_history'] = True
+        self.write_config()
+        included = self.search('marker')
+        self.assertTrue(any(r['result_type'] == 'source-history' for r in included['results']))
+        del self.config['retrieval']['include_raw_history']
+        self.write_config()
+        legacy = self.search('marker')
+        self.assertTrue(any(r['result_type'] == 'source-history' for r in legacy['results']))
+
+    def test_copied_indexes_resolve_only_current_root_without_rebuilding(self):
+        import sqlite3
+        self.event('portable', 'moving marker')
+        kb.init_knowledge_base(self.root)
+        kb.find_events_by_id(self.root, 'portable')  # Populate hot locator too.
+        with tempfile.TemporaryDirectory(prefix='portable-destination-') as tmp:
+            destination = Path(tmp) / 'new mounted path'
+            shutil.copytree(self.root, destination)
+            database = sqlite3.connect(destination / '.kb-data/knowledge.sqlite')
+            try:
+                old_ref = database.execute('SELECT ledger_ref FROM history_events WHERE event_id=?', ('portable',)).fetchone()[0]
+            finally:
+                database.close()
+            self.assertTrue(old_ref.startswith(str(self.root.resolve())))
+            self.event('portable', 'wrong old-root content')
+            args = kb.build_parser().parse_args(['--root',str(destination),'search','moving','--json'])
+            with mock.patch.object(kb, 'rebuild_index', side_effect=AssertionError('must not rebuild')):
+                report = kb.run(args)
+            self.assertEqual(report['results'][0]['statement'], 'moving marker')
+            located = kb.find_events_by_id(destination, 'portable')[0]
+            self.assertTrue(located['ledger_ref'].startswith(str(destination.resolve())))
+
+    def test_windows_index_reference_is_reanchored_and_identity_checked(self):
+        raw = self.event('portable', 'moving marker')
+        fingerprint = kb.event_fingerprint(kb.normalize_event(raw))
+        event = kb.load_event_reference(r'C:\old-drive\knowledge\ledger\portable.json', self.root, 'portable', fingerprint)
+        self.assertEqual(event['statement'], 'moving marker')
+        with self.assertRaises(kb.ConflictError):
+            kb.load_event_reference(r'C:\old-drive\knowledge\ledger\portable.json', self.root, 'other-id', fingerprint)
+        with self.assertRaises(kb.ConflictError):
+            kb.load_event_reference(r'C:\old-drive\knowledge\ledger\portable.json', self.root, 'portable', 'wrong-fingerprint')
+
+    def test_index_reanchor_refuses_traversal_and_symlink_outside_root(self):
+        raw = self.event('portable', 'moving marker')
+        fingerprint = kb.event_fingerprint(kb.normalize_event(raw))
+        for reference in ('/old/ledger/../ledger/portable.json', '/outside/arbitrary.json'):
+            with self.assertRaises(kb.KBError):
+                kb.load_event_reference(reference, self.root, 'portable', fingerprint)
+        with tempfile.TemporaryDirectory(prefix='outside-ledger-') as tmp:
+            target = Path(tmp) / 'record.json'
+            target.write_text(json.dumps(raw))
+            (self.root / 'ledger/escape.json').symlink_to(target)
+            with self.assertRaises(kb.KBError):
+                kb.load_event_reference('/old/ledger/escape.json', self.root, 'portable', fingerprint)
+
     def test_expired_and_future_and_disputed_never_current(self):
         self.event('expiry', 'expiry marker', expires_at='2020-01-01T00:00:00Z')
         self.event('future', 'future marker', valid_from='2999-01-01T00:00:00Z')

@@ -9,4 +9,5 @@ Use temporary directories with cleanup, avoid persistent model/scheduler side ef
 Capabilities require evidence, not product-name assumptions. Do not promote planned,
 registered, mocked or documented behavior to real execution success.
 Release exports use TOOL_MANIFEST.json and scripts/release_check.py; public history must
-start independently of any private repository. Public release is a separate owner action.
+start independently of any private repository. Publish only reviewed tool sources,
+documentation and fictional fixtures; never include a user's knowledge or private history.

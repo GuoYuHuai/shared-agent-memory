@@ -19,6 +19,7 @@ import time
 import uuid
 
 import file_lock
+import device_identity
 
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 JOBS = ("health", "sync", "capture", "curate", "review")
@@ -28,8 +29,18 @@ def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def owner(root):
+    return {"source_device_id": device_identity.resolve_device_id(root),
+            "platform_fingerprint": device_identity.platform_fingerprint(),
+            "knowledge_base_id": device_identity.knowledge_base_id(root),
+            "knowledge_root": str(root.resolve()),
+            "tool_root": str(TOOL_ROOT.resolve())}
+
+
 def directory(root):
-    return root / ".ai-knowledge" / "automation"
+    # Git-ignored is not device-local when the whole checkout is on a portable
+    # drive. Separate receipts so another host cannot inherit scheduler success.
+    return root / ".ai-knowledge" / "automation" / device_identity.resolve_device_id(root)
 
 
 def write(path, value):
@@ -43,8 +54,18 @@ def write(path, value):
 
 
 def read(root, job):
+    expected = owner(root)
     path = directory(root) / (job + ".json")
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"job": job}
+    legacy = root / ".ai-knowledge" / "automation" / (job + ".json")
+    candidate = path if path.exists() else legacy
+    if not candidate.exists():
+        return {"job": job, **expected}
+    state = json.loads(candidate.read_text(encoding="utf-8"))
+    if not isinstance(state, dict) or any(state.get(key) != value for key, value in expected.items()):
+        return {"job": job, **expected, "registration": "unverified", "trial": "not-run",
+                "last_success": None, "receipt_owner_verified": False,
+                "reason": "receipt-device-or-root-unverified"}
+    return {**state, "receipt_owner_verified": True}
 
 
 def update_state(root, job, changes, defaults=None):
@@ -53,9 +74,16 @@ def update_state(root, job, changes, defaults=None):
         file_lock.acquire(lock, exclusive=True, blocking=True)
         try:
             state = read(root, job)
+            if state.get("receipt_owner_verified") is False:
+                if (directory(root) / (job + ".json")).exists():
+                    raise ValueError("current device receipt ownership changed; inspect before replacing")
+                # Preserve the unowned legacy receipt, start a fresh local
+                # state, and require actual registration/trial on this device.
+                state = {"job": job, **owner(root)}
             for key, value in (defaults or {}).items():
                 state.setdefault(key, value)
             state.update(changes)
+            state.update(owner(root))
             write(directory(root) / (job + ".json"), state)
             return state
         finally:
@@ -91,6 +119,9 @@ def command(root, job):
     config_file = root / "config" / "kb.json"
     config = json.loads(config_file.read_text(encoding="utf-8")) if config_file.is_file() else {}
     if job == "sync":
+        if (not config.get("hot_sync", {}).get("expected_repository")
+                or config.get("hot_sync", {}).get("enabled") is False):
+            return None
         return [sys.executable, str(scripts / "git_sync.py"), "--pull-only"]
     if job == "capture":
         history = config.get("history_capture", {})
@@ -100,7 +131,8 @@ def command(root, job):
         if source not in ("codex", "claude", "all"):
             raise ValueError("history source parser unavailable; use the adapter contract")
         return [sys.executable, str(scripts / "ingest_history.py"), "--scan", "--source", source,
-                "--max-lines", str(history.get("maximum_lines", 2000))]
+                "--max-lines", str(history.get("maximum_lines", 2000)),
+                "--device-id", device_identity.resolve_device_id(root)]
     if job == "curate":
         if config.get("semantic_maintenance", {}).get("enabled") is not True:
             return None
@@ -261,6 +293,8 @@ def disable(root, job):
 
 def _disable(root, job):
     state = read(root, job)
+    if state.get("receipt_owner_verified") is False:
+        return {"ok": False, "reason": "receipt-device-or-root-unverified", "registration": "unverified"}
     if state.get("registration") == "registered" and state.get("scheduler") != "launchd":
         return {"ok": False, "reason": "scheduler-disable-adapter-unavailable"}
     target = "gui/" + str(os.getuid()) + "/" + label(root, job) if platform.system() == "Darwin" else None

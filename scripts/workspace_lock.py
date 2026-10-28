@@ -25,8 +25,14 @@ def lock_path(root: Path) -> Path:
 
 @contextmanager
 def acquire(root: Path, blocking: bool = False) -> Iterator[TextIO]:
+    # The installer creates a knowledge root explicitly. Runtime locking must
+    # never recreate a removed directory or an unplugged portable checkout.
+    if not root.is_dir():
+        raise FileNotFoundError("knowledge-root-unavailable: %s" % root)
     path = lock_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # No parents=True: if the root disappears after the check, fail rather
+    # than rebuilding the missing root/volume path on the internal disk.
+    path.parent.mkdir(exist_ok=True)
     handle = path.open("a+")
     acquired = False
     try:

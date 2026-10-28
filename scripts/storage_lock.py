@@ -19,8 +19,10 @@ class StorageBusy(RuntimeError):
 
 @contextmanager
 def acquire(root: Path, exclusive: bool, blocking: bool = False) -> Iterator[TextIO]:
+    if not root.is_dir():
+        raise FileNotFoundError("knowledge-root-unavailable: %s" % root)
     path = root / "generated" / "storage-operation.lock"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(exist_ok=True)
     handle = path.open("a+")
     acquired = False
     try:

@@ -7,5 +7,8 @@
 - Retain immutable events, provenance, lifecycle relationships, rebuildable indexes, cold-storage fallback, bounded Git behavior and validated semantic proposals.
 - Add public installation ownership, retrieval/freshness and automation-budget work; consult the acceptance report for what was actually verified in this candidate.
 - Add fictional demonstrations, contribution templates and compatibility evidence rules.
+- Default to lightweight knowledge with local-only, optional private GitHub sync and removable-directory setup.
+- Preserve device identity and isolate scheduler receipts when moving between devices; history retrieval is explicitly opt-in for new installations.
+- Support local commits without a remote and keep proactive capture, direct user requests and optional schedules equally usable.
 
-This is a release candidate prepared for review, not confirmation of public publication. Native hosts, physical devices and scheduling require their own evidence. The candidate does not migrate or change visibility of an existing private repository.
+This experimental release has an explicit support boundary. Native hosts and physical devices require their own evidence. It does not migrate or change visibility of an existing private repository.

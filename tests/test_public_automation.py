@@ -21,6 +21,14 @@ class PublicAutomationTests(unittest.TestCase):
         self.root = Path(self.temp.name) / '知识 with spaces'
         self.root.mkdir()
         (self.root / 'POLICY.md').write_text('# Fictional test policy\n')
+        # Isolate device probing from mocked subprocess boundaries. Real child
+        # processes still use the same current platform identity.
+        device = automation.device_identity.resolve_device_id(self.root)
+        fingerprint = automation.device_identity.platform_fingerprint()
+        for name, value in [('resolve_device_id', device), ('platform_fingerprint', fingerprint)]:
+            patcher = mock.patch.object(automation.device_identity, name, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_plan_is_not_registration_and_no_model_stays_pending(self):
         state = automation.plan(self.root, 'curate')
@@ -51,6 +59,55 @@ class PublicAutomationTests(unittest.TestCase):
         self.assertEqual(state['trial'], 'failed')
         self.assertEqual(state['last_success'], success)
         self.assertEqual(result['usage']['status'], 'unknown')
+
+    def test_portable_drive_never_inherits_other_device_success(self):
+        with mock.patch.object(automation.device_identity, 'resolve_device_id', return_value='device-a'), mock.patch.object(automation.device_identity, 'platform_fingerprint', return_value='fingerprint-a'):
+            automation.plan(self.root, 'health')
+            automation.run(self.root, 'health')
+            original = automation.directory(self.root) / 'health.json'
+            preserved = original.read_bytes()
+        with mock.patch.object(automation.device_identity, 'resolve_device_id', return_value='device-b'), mock.patch.object(automation.device_identity, 'platform_fingerprint', return_value='fingerprint-b'):
+            state = automation.read(self.root, 'health')
+            self.assertIsNone(state.get('last_success'))
+            self.assertNotEqual(state.get('trial'), 'succeeded')
+            planned = automation.plan(self.root, 'health')
+            self.assertEqual(planned['registration'], 'not-registered')
+            self.assertEqual(planned['trial'], 'not-run')
+            self.assertNotEqual(automation.directory(self.root) / 'health.json', original)
+        self.assertEqual(original.read_bytes(), preserved)
+
+    def test_unowned_legacy_receipt_is_preserved_not_reported_as_local_success(self):
+        legacy = self.root / '.ai-knowledge/automation/health.json'
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text(json.dumps({'job':'health','registration':'registered','trial':'succeeded','last_success':'fictional-time'}))
+        preserved = legacy.read_bytes()
+        state = automation.read(self.root, 'health')
+        self.assertEqual(state['registration'], 'unverified')
+        self.assertIsNone(state['last_success'])
+        self.assertFalse(automation.disable(self.root, 'health')['ok'])
+        state = automation.plan(self.root, 'health')
+        self.assertEqual(state['registration'], 'not-registered')
+        self.assertEqual(legacy.read_bytes(), preserved)
+
+    def test_moved_tool_root_invalidates_prior_execution_evidence(self):
+        automation.plan(self.root, 'health')
+        automation.run(self.root, 'health')
+        with mock.patch.object(automation, 'TOOL_ROOT', self.root / 'different-tool-install'):
+            state = automation.read(self.root, 'health')
+            self.assertEqual(state['registration'], 'unverified')
+            self.assertIsNone(state['last_success'])
+            self.assertFalse(automation.disable(self.root, 'health')['ok'])
+
+    def test_history_capture_passes_the_bound_device_identity(self):
+        (self.root / 'config').mkdir()
+        (self.root / 'config/kb.json').write_text(json.dumps({'history_capture': {'enabled':True,'source':'codex'}}))
+        with mock.patch.object(automation.device_identity, 'resolve_device_id', return_value='bound-device'):
+            command = automation.command(self.root, 'capture')
+        self.assertEqual(command[command.index('--device-id')+1], 'bound-device')
+
+    def test_missing_remote_and_disabled_history_do_not_spawn_commands(self):
+        self.assertIsNone(automation.command(self.root, 'sync'))
+        self.assertIsNone(automation.command(self.root, 'capture'))
 
     def test_bounded_history_rounds_resume_without_loss_or_duplicate(self):
         home = self.root / 'fictional-home'

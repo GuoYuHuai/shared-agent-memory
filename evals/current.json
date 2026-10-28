@@ -18,8 +18,8 @@
         "atlas-color",
         "atlas-inferred"
       ],
-      "seconds": 0.002143,
-      "context_characters": 969
+      "seconds": 0.004598,
+      "context_characters": 1021
     },
     {
       "id": "Q02",
@@ -32,8 +32,8 @@
         "atlas-color",
         "atlas-inferred"
       ],
-      "seconds": 0.001115,
-      "context_characters": 970
+      "seconds": 0.001642,
+      "context_characters": 1022
     },
     {
       "id": "Q03",
@@ -45,8 +45,8 @@
       "returned_ids": [
         "atlas-color"
       ],
-      "seconds": 0.000947,
-      "context_characters": 484
+      "seconds": 0.001207,
+      "context_characters": 510
     },
     {
       "id": "Q04",
@@ -58,8 +58,8 @@
       "returned_ids": [
         "atlas-release"
       ],
-      "seconds": 0.001568,
-      "context_characters": 499
+      "seconds": 0.002146,
+      "context_characters": 525
     },
     {
       "id": "Q05",
@@ -71,8 +71,8 @@
       "returned_ids": [
         "atlas-release"
       ],
-      "seconds": 0.000822,
-      "context_characters": 493
+      "seconds": 0.001072,
+      "context_characters": 519
     },
     {
       "id": "Q06",
@@ -84,8 +84,8 @@
       "returned_ids": [
         "atlas-release"
       ],
-      "seconds": 0.001031,
-      "context_characters": 499
+      "seconds": 0.002236,
+      "context_characters": 525
     },
     {
       "id": "Q07",
@@ -97,8 +97,8 @@
       "returned_ids": [
         "atlas-storage"
       ],
-      "seconds": 0.001688,
-      "context_characters": 485
+      "seconds": 0.001182,
+      "context_characters": 511
     },
     {
       "id": "Q08",
@@ -110,8 +110,8 @@
       "returned_ids": [
         "atlas-storage"
       ],
-      "seconds": 0.001368,
-      "context_characters": 488
+      "seconds": 0.001058,
+      "context_characters": 514
     },
     {
       "id": "Q09",
@@ -123,8 +123,8 @@
       "returned_ids": [
         "atlas-device-a"
       ],
-      "seconds": 0.000999,
-      "context_characters": 489
+      "seconds": 0.001071,
+      "context_characters": 515
     },
     {
       "id": "Q10",
@@ -136,8 +136,8 @@
       "returned_ids": [
         "atlas-device-b"
       ],
-      "seconds": 0.000897,
-      "context_characters": 489
+      "seconds": 0.001099,
+      "context_characters": 515
     },
     {
       "id": "Q11",
@@ -149,8 +149,8 @@
       "returned_ids": [
         "beacon-color"
       ],
-      "seconds": 0.000874,
-      "context_characters": 484
+      "seconds": 0.00128,
+      "context_characters": 510
     },
     {
       "id": "Q12",
@@ -162,8 +162,8 @@
       "returned_ids": [
         "beacon-color"
       ],
-      "seconds": 0.000895,
-      "context_characters": 482
+      "seconds": 0.00099,
+      "context_characters": 508
     },
     {
       "id": "Q13",
@@ -173,8 +173,8 @@
       "returned_ids": [
         "atlas-expired"
       ],
-      "seconds": 0.000989,
-      "context_characters": 548
+      "seconds": 0.00134,
+      "context_characters": 574
     },
     {
       "id": "Q14",
@@ -184,8 +184,8 @@
       "returned_ids": [
         "atlas-disputed"
       ],
-      "seconds": 0.000857,
-      "context_characters": 473
+      "seconds": 0.001517,
+      "context_characters": 499
     },
     {
       "id": "Q15",
@@ -195,8 +195,8 @@
       "returned_ids": [
         "atlas-archive"
       ],
-      "seconds": 0.001036,
-      "context_characters": 472
+      "seconds": 0.001506,
+      "context_characters": 498
     },
     {
       "id": "Q16",
@@ -210,8 +210,8 @@
         "atlas-source-new",
         "atlas-source-old"
       ],
-      "seconds": 0.00109,
-      "context_characters": 1026
+      "seconds": 0.001664,
+      "context_characters": 1078
     },
     {
       "id": "Q17",
@@ -225,8 +225,8 @@
         "atlas-source-new",
         "atlas-source-old"
       ],
-      "seconds": 0.001042,
-      "context_characters": 1032
+      "seconds": 0.001537,
+      "context_characters": 1084
     },
     {
       "id": "Q18",
@@ -239,8 +239,8 @@
         "atlas-current",
         "atlas-old"
       ],
-      "seconds": 0.00104,
-      "context_characters": 1012
+      "seconds": 0.001414,
+      "context_characters": 1064
     },
     {
       "id": "Q19",
@@ -250,8 +250,8 @@
       "returned_ids": [
         "atlas-unknown"
       ],
-      "seconds": 0.000892,
-      "context_characters": 486
+      "seconds": 0.001494,
+      "context_characters": 512
     },
     {
       "id": "Q20",
@@ -261,8 +261,8 @@
       "returned_ids": [
         "atlas-reject"
       ],
-      "seconds": 0.000837,
-      "context_characters": 471
+      "seconds": 0.001346,
+      "context_characters": 497
     },
     {
       "id": "Q21",
@@ -270,7 +270,7 @@
       "expected_current_first": null,
       "actual_current_ids": [],
       "returned_ids": [],
-      "seconds": 0.000606,
+      "seconds": 0.000768,
       "context_characters": 2
     },
     {
@@ -284,8 +284,8 @@
         "atlas-color",
         "atlas-inferred"
       ],
-      "seconds": 0.000995,
-      "context_characters": 969
+      "seconds": 0.001568,
+      "context_characters": 1021
     },
     {
       "id": "Q23",
@@ -297,8 +297,8 @@
       "returned_ids": [
         "atlas-release"
       ],
-      "seconds": 0.001373,
-      "context_characters": 499
+      "seconds": 0.002115,
+      "context_characters": 525
     },
     {
       "id": "Q24",
@@ -310,8 +310,8 @@
       "returned_ids": [
         "atlas-release"
       ],
-      "seconds": 0.001453,
-      "context_characters": 499
+      "seconds": 0.001604,
+      "context_characters": 525
     }
   ],
   "expected_source_recall_at_3": 1.0,

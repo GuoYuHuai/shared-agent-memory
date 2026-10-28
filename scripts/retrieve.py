@@ -14,6 +14,17 @@ import sys
 import git_sync
 import kb
 import workspace_lock
+import device_identity
+
+
+def freshness_binding(root, config):
+    return {'device': device_identity.platform_fingerprint(),
+            'root': str(root.resolve()),
+            'knowledge_base_id': device_identity.knowledge_base_id(root),
+            'repository': config.get('hot_sync', {}).get('expected_repository'),
+            'origin': git_sync.value(['remote', 'get-url', 'origin'], root=root),
+            'head': git_sync.value(['rev-parse', '--verify', 'HEAD'], root=root),
+            'branch': git_sync.value(['symbolic-ref', '--quiet', 'HEAD'], root=root)}
 
 
 def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
@@ -28,6 +39,8 @@ def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
         state = json.loads(state_path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         pass
+    if state.get('binding') != freshness_binding(root, config):
+        state = {}
     verified_at = kb.parse_time(state.get('remote_verified_at'))
     now = kb.utc_now()
     fresh = bool(verified_at and 0 <= (now - verified_at).total_seconds() <= maximum_age)
@@ -58,7 +71,8 @@ def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
     report = query_local()
     need_sync = not fresh or not report.get('current_count', report['count'])
     if need_sync and not offline:
-        if not config.get('hot_sync', {}).get('expected_repository'):
+        if (not config.get('hot_sync', {}).get('expected_repository')
+                or config.get('hot_sync', {}).get('enabled') is False):
             sync_status = 'not-configured'
         else:
             sync_attempts = 1
@@ -68,7 +82,8 @@ def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
                 if outcome.get('ok') and not outcome.get('skipped'):
                     sync_status = 'verified'
                     state_path.parent.mkdir(parents=True, exist_ok=True)
-                    state_path.write_text(json.dumps({'remote_verified_at': kb.iso_now()}, indent=2)+'\n', encoding='utf-8')
+                    state_path.write_text(json.dumps({'remote_verified_at': kb.iso_now(),
+                        'binding': freshness_binding(root, config)}, indent=2)+'\n', encoding='utf-8')
                     report = query_local()
                 else:
                     sync_status = 'failed:' + str(outcome.get('status', outcome.get('skipped', 'unknown')))

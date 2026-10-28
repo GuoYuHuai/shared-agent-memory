@@ -1,10 +1,29 @@
 {
+  "format": "ai-knowledge-background-smoke-v2",
+  "observed_at": "2026-10-28T09:10:09.763637+00:00",
   "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "job": "health",
+  "scheduler": "launchd",
+  "fixture": "isolated-temporary-knowledge-root-with-fictional-data",
+  "trigger": "RunAtLoad",
+  "interval_seconds": 3600,
+  "validation_scope": "one real launchd health execution; no semantic review, history capture, or other Agent compatibility claims",
+  "source_sha256": "1ed3369e4493fe69f89c28e54b540ba9282d4ad8dea80ac5a7ea21c363a89f15",
+  "planning": {
+    "registration": "not-registered",
+    "trial": "not-run",
+    "last_success": null
+  },
   "registration": "registered",
+  "scheduler_runtime": {
+    "job_present": true,
+    "launch_count": 1,
+    "last_exit_code": 0
+  },
   "trial": "succeeded",
-  "last_success": "2026-10-28T08:11:26.715843+00:00",
+  "last_success": "2026-10-28T09:10:10.324653+00:00",
   "last_run": {
-    "started_at": "2026-10-28T08:11:26.715246+00:00",
+    "started_at": "2026-10-28T09:10:10.324005+00:00",
     "input_events": null,
     "model": null,
     "usage": {
@@ -12,17 +31,22 @@
       "model_calls": 0
     },
     "retry_count": 0,
-    "execution_id": "581e46945b0342c29fb2617f369b465e",
+    "execution_id": "63fc824fc5f347f4a64f64c17d10da1b",
     "ok": true,
     "validated_json_files": 1,
     "coverage": "hot-json-syntax-and-policy",
     "semantic_review": "not-performed",
-    "finished_at": "2026-10-28T08:11:26.715843+00:00",
+    "finished_at": "2026-10-28T09:10:10.324653+00:00",
     "elapsed_seconds": 0.001
   },
-  "interval_change_rejected": true,
+  "independent_background_process_verified": true,
+  "receipt_owner_verified": true,
   "plan_interval_change_rejected": true,
+  "plan_interval_receipt_preserved": true,
+  "interval_change_rejected": true,
   "interval_receipt_preserved": true,
   "teardown_registration": "disabled",
-  "scheduler_removed": true
+  "scheduler_removed": true,
+  "temporary_directory_removed": true,
+  "ok": true
 }

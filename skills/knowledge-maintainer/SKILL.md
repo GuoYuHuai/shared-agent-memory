@@ -1,14 +1,22 @@
 ---
 name: knowledge-maintainer
-description: Capture authorized facts and corrections with provenance in the configured private knowledge base.
+description: 在工作中主动保存可复用事实、精确配置、决定、偏好和更正，按已配置方式同步；同样处理用户的一句话记录与可选定时整理。
 ---
 
-Resolve explicit tool and knowledge roots; read the user's POLICY.md and data version.
-Use immutable schema-1 events. User statements retain that authority; inference stays
-candidate. Capture exact values when authorized, keeping unnecessary values out of output.
-Use --value-file for exact local values. Same-ID different content is a conflict, never
-an overwrite. Corrections retain the original record and append a supersession relation.
-Follow docs/github.md for no-CLI writes, expected-version/atomic operations and readback.
-Verify saved bytes, discoverability and sync separately. Do not claim a hook or scheduler
-ran from a written rule or plan. Only collect history within the user's chosen source scope.
-Keep raw history, checkpoints and logs local; only share authorized normalized knowledge.
+# Knowledge Maintainer
+
+从安装配置取得明确的工具根目录与知识根目录，先读取用户 `POLICY.md` 和数据版本。知识可保存在本地、移动盘或用户自己的私有 GitHub 仓库，不强制远端或后台模型。
+
+默认轻量：只主动提炼当前工作中值得复用的知识，不自动开启全量回溯、原始历史归档或覆盖全部历史的大型索引。用户需要更大规模时，结合已选择的来源范围与存储条件分阶段启用，不套用作者个人库的体量。
+
+三种入口使用同一知识内核：工作过程中主动捕获、用户直接要求记录或更正、可选的定时维护。不要等待定时任务才保存当前已明确的信息，也不要因为定时任务停用而停止前台记录。
+
+1. 按用户政策主动捕获值得复用的事实、项目决定、配置原值、偏好、习惯和更正，带上稳定 ID、作用域、完整来源与时间。用户陈述保持其权威类型；模型推断保持候选，不升级为已验证事实。
+2. 使用不可变 schema-1 事件。需要保存且已授权的精确值保持完整；本地原值文件使用 `--value-file`，避免不必要地把值放入命令行和输出。不能只写“已保存”或模糊摘要代替原值。
+3. 同 ID 同内容重放应幂等；同 ID 不同内容是冲突，不覆盖。明确更正追加新记录与 supersession 关系，保留旧记录及来源。无法判断的争议保留为候选或冲突。
+4. 有本地工具时使用配置的知识根目录调用 `scripts/kb.py`。只有 GitHub 工具时按 `docs/github.md` 追加事件、检查预期版本或原子提交，再读回验证。只有只读能力时，明确给出尚未保存的提案。
+5. 从实际目的地读回并验证内容、稳定 ID 和路径；精确值需要能够完整回读。检索可发现性与保存成功分别验证。
+6. 已配置并授权同步时主动推进同步，分别记录本地保存、远端提交和另一读取路径可发现的状态。没有配置远端时，本地验证即可；离线或同步失败时保留本地事实并报告待同步，不重复制造事实。
+7. 批量历史采集只使用用户已选择或授权的范围。原始历史、检查点和运行日志默认留在来源设备；只同步已授权共享的规范化知识。
+
+需要定时任务时再按真实调度与模型能力规划和登记。计划、登记、试跑和最近成功分开；规则文件写入不证明生命周期 hook 已触发。任务暂停、卸载或换 Agent 不删除知识。节省 token 不是捕获正确性或发布的前置目标。

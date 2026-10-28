@@ -26,6 +26,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+import device_identity
+
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("AI_KNOWLEDGE_ROOT", str(TOOL_ROOT))).expanduser().resolve()
 CONFIG_PATH = ROOT / "config" / "kb.json"
@@ -151,28 +156,20 @@ def default_locations() -> Tuple[Path, Path]:
 
 
 def platform_identifier_material() -> str:
-    """Match register_device.py without ever returning the identifier itself."""
-    if platform.system() == "Darwin":
-        try:
-            output = subprocess.check_output(
-                ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
-                text=True,
-                stderr=subprocess.DEVNULL,
-            )
-            match = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', output)
-            if match:
-                return "platform-uuid:" + match.group(1)
-        except (OSError, subprocess.CalledProcessError):
-            pass
-    return "hostname:" + socket.gethostname()
+    """Use the same stable platform contract as foreground knowledge capture."""
+    return device_identity.platform_material()
 
 
 def derive_device_id() -> str:
-    material = platform_identifier_material().encode("utf-8")
-    return hashlib.sha256(material).hexdigest()[:16]
+    try:
+        return device_identity.resolve_device_id(ROOT)
+    except device_identity.DeviceIdentityError as error:
+        raise IngestError("device-identity-unavailable") from error
 
 
 def resolve_device_id(override: Optional[str]) -> str:
+    # An explicit source ID remains available for historical imports and
+    # fixtures. Automatic execution always passes the current bound identity.
     device_id = override or os.environ.get("KB_SOURCE_DEVICE_ID") or derive_device_id()
     if not isinstance(device_id, str) or not device_id.strip():
         raise IngestError("invalid-device-id")

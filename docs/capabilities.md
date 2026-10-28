@@ -26,11 +26,15 @@ Every capability report contains `status`, `declared`, `verified_at`, `scope`, `
 | Public read only | Read bootstrap and identify missing access | Personal knowledge connected |
 | Private read | Retrieve evidence, prepare unsaved proposals | New facts persisted |
 | Private read/write | Connector-based capture, readback and corrections | Local index/history installed |
-| Local files/execution | Local retrieval/capture, optional Git/index/history | Scheduler/model available merely because shell works |
+| Local files/execution with Python and Git | Local retrieval/capture on the device or selected removable storage; remote sync and history collection are optional | A GitHub account, scheduler or model is required merely because local Git is used |
 | Scheduler without model | Sync, deterministic capture and health checks | Semantic curation executed |
 | Scheduler and background model | Bounded curation/review after actual registration and trial | Always-on execution while the host is asleep/offline |
 
+The local reference currently requires Python and Git, but neither a GitHub account nor a remote. Pure local and removable storage are valid choices. Default installation only captures reusable knowledge from current work; full history backfill, raw archives and history-wide large indexes are opt-in. A scheduler is an optional capability, not a prerequisite for proactive capture or direct user requests.
+
 Capabilities can combine independently: a cloud Agent may have private repository writes and scheduling but no access to a laptop's history. Session-only protocol use is valid when persistence is unavailable.
+
+A path or mode label is not a physical-storage certification. Check actual access and mounting behavior; moving a knowledge root between two physical devices remains unverified until observed.
 
 ## Example of honest partial reporting
 

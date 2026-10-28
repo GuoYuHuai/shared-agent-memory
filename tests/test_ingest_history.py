@@ -57,6 +57,22 @@ def codex_tool_result(output, timestamp, call_id, result_type="function_call_out
 
 
 class IngestHistoryTests(unittest.TestCase):
+    def test_default_identity_matches_foreground_bound_device_on_every_platform(self):
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(INGEST.device_identity, 'resolve_device_id', return_value='bound-local-device') as resolve:
+            self.assertEqual(INGEST.resolve_device_id(None), 'bound-local-device')
+            resolve.assert_called_once_with(INGEST.ROOT)
+
+    def test_unavailable_default_identity_fails_without_hostname_fallback(self):
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(INGEST.device_identity, 'resolve_device_id', side_effect=INGEST.device_identity.DeviceIdentityError('unavailable')):
+            with self.assertRaisesRegex(INGEST.IngestError, 'device-identity-unavailable'):
+                INGEST.resolve_device_id(None)
+
+    def test_explicit_source_identity_is_retained_for_imports(self):
+        with mock.patch.object(INGEST.device_identity, 'resolve_device_id', side_effect=AssertionError('not needed')):
+            self.assertEqual(INGEST.resolve_device_id('imported-device'), 'imported-device')
+            with mock.patch.dict(os.environ, {'KB_SOURCE_DEVICE_ID':'explicit-environment-device'}):
+                self.assertEqual(INGEST.resolve_device_id(None), 'explicit-environment-device')
+
     def test_tool_evidence_truncation_is_bounded_and_fail_closed(self):
         prefix = "EXAMPLE_VALUE_PREFIX="
         content, complete = INGEST.evidence_text_from_value(

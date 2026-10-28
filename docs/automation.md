@@ -1,4 +1,6 @@
-# Automation and measurement
+# Optional automation and measurement
+
+Work-time proactive capture, direct user requests and scheduled maintenance use the same knowledge. Scheduling is optional: pausing or disabling every scheduled task leaves foreground retrieval and capture available. Default installation is lightweight and does not enable history collection, raw archives, semantic background runs or a history-wide large index. Use these jobs only when the user needs them and the corresponding capabilities are available.
 
 Every job has separate planning, registration, trial, and last-success fields in
 `<knowledge-root>/.ai-knowledge/automation/<job>.json`. These device-local receipts
@@ -12,9 +14,9 @@ is `unknown` when the platform did not return it; deterministic health uses
 From the selected tool release, with an already installed knowledge root:
 
 ```sh
-python3 scripts/automation.py --root '/path/to/private knowledge' plan health
-python3 scripts/automation.py --root '/path/to/private knowledge' run health
-python3 scripts/automation.py --root '/path/to/private knowledge' status health
+python3 scripts/automation.py --root '/path/to/my-knowledge' plan health
+python3 scripts/automation.py --root '/path/to/my-knowledge' run health
+python3 scripts/automation.py --root '/path/to/my-knowledge' status health
 ```
 
 The health job validates hot JSON syntax and policy presence without a model or
@@ -24,9 +26,9 @@ A manual run changes trial evidence only; registration remains `not-registered`.
 On macOS, after checking user authorization for recurring execution:
 
 ```sh
-python3 scripts/automation.py --root '/path/to/private knowledge' register-launchd health --interval-seconds 1800
-python3 scripts/automation.py --root '/path/to/private knowledge' status health
-python3 scripts/automation.py --root '/path/to/private knowledge' disable health
+python3 scripts/automation.py --root '/path/to/my-knowledge' register-launchd health --interval-seconds 1800
+python3 scripts/automation.py --root '/path/to/my-knowledge' status health
+python3 scripts/automation.py --root '/path/to/my-knowledge' disable health
 ```
 
 Registration uses a root-derived unique identity, stores its owned plist next to
@@ -45,7 +47,7 @@ This does not establish Windows scheduling, native Codex automation, or model ex
 
 - `sync`: existing repository identity, path restriction, locking, no-force sync machinery.
   The automation entry performs pull-only; use `hot_sync.py` to commit and push authorized
-  canonical changes. Set `AI_KNOWLEDGE_ROOT` to the private knowledge root.
+  canonical changes. Set `AI_KNOWLEDGE_ROOT` to the chosen knowledge root. Remote sync applies only when a user-owned private remote is configured; pure local/removable use does not need it.
 - `capture`: opt-in `history_capture.enabled`, `source`, and `maximum_lines` in that root's
   `config/kb.json`. Codex/Claude parsers are reference formats, not an Agent admission
   whitelist. Unknown source formats require a new parser or foreground capture.
@@ -56,11 +58,12 @@ This does not establish Windows scheduling, native Codex automation, or model ex
   autonomous weekly semantic knowledge review. The inherited report-only code audit is
   separate and must not be presented as knowledge review.
 
-`capture` and `curate` remain pending when not enabled. Frontend capture/retrieval and
-health continue without either. No runner is installed or purchased by default.
+If these optional `capture` or `curate` jobs are invoked while not enabled, their receipts may report pending/not-enabled. That records the requested optional job's state; it is not an installation debt or a requirement to enable it. Foreground proactive capture, direct user requests, retrieval and health continue without either. No runner is installed or purchased by default.
 An external scheduler can call the same finite jobs; it must supply its own query,
 disable and actual execution evidence. Native host scheduler adapters are documented,
 not certified in this release. Connector authentication is not passed to CLI runners.
+
+Usage observations support a user-chosen background budget. Token savings are not a product goal, compatibility gate or release prerequisite. No community Issue/PR audit or merge schedule is created by this guide.
 
 ## Bounded work and recovery
 

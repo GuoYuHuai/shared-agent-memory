@@ -477,6 +477,7 @@ def retrieval_settings(root: Path) -> Dict[str, Any]:
         "default_limit": 12,
         "maximum_context_characters": 16000,
         "prefer_canonical_over_raw_history": True,
+        "include_raw_history": True,  # Legacy compatibility; new installs explicitly opt out.
     }
     config_path = root / "config" / "kb.json"
     if not config_path.is_file():
@@ -488,6 +489,7 @@ def retrieval_settings(root: Path) -> Dict[str, Any]:
         settings["maximum_context_characters"] = max(
             1000, min(1000000, int(configured.get("maximum_context_characters", 16000)))
         )
+        settings["include_raw_history"] = configured.get("include_raw_history", True) is True
         settings["prefer_canonical_over_raw_history"] = bool(
             configured.get("prefer_canonical_over_raw_history", True)
         )
@@ -909,6 +911,7 @@ LIFECYCLE_STATUS_RANKS = {
     "expired": 2,
     "not-yet-effective": 1,
     "invalid-time": 1,
+    "source-unavailable": 1,
     "archived": 2,
     "deprecated": 2,
     "historical-snapshot": 2,
@@ -1108,7 +1111,11 @@ def annotate_lifecycle(
         effective = parse_time(item.get("valid_from"))
         invalid_time = any(item.get(field) and parse_time(item[field]) is None
                            for field in ("source_time", "observed_at", "confirmed_at", "expires_at", "valid_from"))
-        if invalid_time:
+        if item.get("source_available") is False:
+            item["effective_status"] = "source-unavailable"
+        elif item.get("projection_conflict"):
+            item["effective_status"] = "disputed"
+        elif invalid_time:
             item["effective_status"] = "invalid-time"
         elif expiry is not None and expiry <= now:
             item["effective_status"] = "expired"
@@ -1121,7 +1128,7 @@ def annotate_lifecycle(
         else:
             item["effective_status"] = resolution or item.get("status", "active")
         if (item.get("fact_key") and not replacement and resolution != "rejected"
-                and item.get("effective_status") not in ("expired", "not-yet-effective", "invalid-time")
+                and item.get("effective_status") not in ("expired", "not-yet-effective", "invalid-time", "source-unavailable")
                 and LIFECYCLE_STATUS_RANKS.get(clean_scalar(item.get("status")), 1) == 0):
             groups.setdefault((clean_scalar(item.get("scope")), clean_scalar(item["fact_key"])), []).append(item)
     for group in groups.values():
@@ -1140,7 +1147,7 @@ def annotate_lifecycle(
 
 def lifecycle_status_rank(item: Dict[str, Any]) -> int:
     effective = clean_scalar(item.get("effective_status")).strip().lower()
-    if effective in ("expired", "not-yet-effective", "invalid-time", "disputed", "conflict"):
+    if effective in ("expired", "not-yet-effective", "invalid-time", "source-unavailable", "disputed", "conflict"):
         return LIFECYCLE_STATUS_RANKS[effective]
     state = clean_scalar(item.get("candidate_state")).strip().lower()
     if state == "rejected":
@@ -3548,6 +3555,9 @@ def ensure_hot_locator_locked(root: Path, database: Path) -> sqlite3.Connection:
 
 def load_locator_event(root: Path, row: sqlite3.Row) -> Dict[str, Any]:
     relative = clean_scalar(row["source_path"])
+    relative_parts = Path(relative).parts
+    if not relative_parts or relative_parts[0] != "ledger" or ".." in relative_parts:
+        raise KBError("unsafe hot event locator path")
     path = (root / relative).resolve()
     try:
         path.relative_to(root)
@@ -3576,9 +3586,13 @@ def load_locator_event(root: Path, row: sqlite3.Row) -> Dict[str, Any]:
         ) from error
     if not isinstance(raw, dict):
         raise KBError("hot event locator target is not an event: %s" % relative)
-    event = normalize_event(raw, clean_scalar(row["reference"]))
+    _, separator, suffix = clean_scalar(row["reference"]).partition("#")
+    current_reference = str(path) + ("#" + suffix if separator else "")
+    event = normalize_event(raw, current_reference)
     if event["id"] != clean_scalar(row["event_id"]):
         raise KBError("hot event locator id mismatch for %s" % relative)
+    if event_fingerprint(event) != clean_scalar(row["event_fingerprint"]):
+        raise ConflictError("hot event locator fingerprint mismatch for %s" % relative)
     return event
 
 
@@ -4932,29 +4946,63 @@ def fts_query(query: str) -> Optional[str]:
     return " AND ".join(quoted)
 
 
-def load_event_reference(reference: str) -> Optional[Dict[str, Any]]:
-    if "#" not in reference:
-        path = Path(reference)
-        if not path.is_file():
-            return None
-        values = list(iter_json_values(path))
-        return normalize_event(values[0][0], values[0][1]) if values else None
-    path_text, selector = reference.split("#", 1)
-    path = Path(path_text)
-    if not path.is_file():
-        return None
-    values = list(iter_json_values(path))
-    if selector.isdigit():
-        target = "%s#%s" % (path, selector)
-        for raw, ref in values:
-            if ref == target:
-                return normalize_event(raw, ref)
-    elif selector.startswith("events[") or selector.startswith("["):
-        target = "%s#%s" % (path, selector)
-        for raw, ref in values:
-            if ref == target:
-                return normalize_event(raw, ref)
-    return None
+def load_event_reference(
+    reference: str, root: Path, expected_id: str, expected_fingerprint: str
+) -> Optional[Dict[str, Any]]:
+    """Resolve a disposable index reference against this knowledge checkout.
+
+    Older projections contain absolute host paths. Never follow them: consider
+    only existing files below this root's ledger, then verify immutable ID and
+    content fingerprint before using the record. Source provenance is untouched.
+    """
+    base, separator, selector = str(reference).partition("#")
+    parts = re.split(r"[\\/]", base)
+    if ".." in parts or "\x00" in base:
+        raise KBError("unsafe ledger index reference")
+    root = root.resolve(strict=True)
+    try:
+        relative = Path(base).relative_to(root)
+        suffixes = [relative.parts] if relative.parts and relative.parts[0] == "ledger" else []
+    except ValueError:
+        suffixes = [tuple(parts[index:]) for index, part in enumerate(parts) if part == "ledger"]
+    if not suffixes:
+        raise KBError("ledger index reference has no ledger-relative path")
+    candidates = set()
+    for suffix in suffixes:
+        if any(part in ("", ".", "..") for part in suffix):
+            continue
+        path = root.joinpath(*suffix)
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError):
+            continue
+        try:
+            resolved.relative_to(root)
+        except ValueError as error:
+            raise KBError("ledger index reference escapes knowledge root") from error
+        if resolved.is_file():
+            candidates.add(resolved)
+    matched = []
+    found_selector = False
+    for path in sorted(candidates):
+        target = str(path) + ("#" + selector if separator else "")
+        for raw, ref in iter_json_values(path):
+            if separator and ref != target:
+                continue
+            event = normalize_event(raw, ref)
+            found_selector = True
+            if event["id"] != expected_id:
+                continue
+            if event_fingerprint(event) != expected_fingerprint:
+                raise ConflictError("ledger index fingerprint differs from current source: %s" % expected_id)
+            matched.append(event)
+            if not separator:
+                break
+    if not matched and found_selector:
+        raise ConflictError("ledger index source id differs from current source: %s" % expected_id)
+    if len(matched) > 1:
+        raise ConflictError("ambiguous ledger index reference: %s" % expected_id)
+    return matched[0] if matched else None
 
 
 def opaque_credential_token_present(content: str) -> bool:
@@ -5038,7 +5086,9 @@ def enforce_context_budget(results: List[Dict[str, Any]], query: str, maximum: i
 
 
 def search_source_history(root: Path, args: argparse.Namespace, match: Optional[str]) -> List[Dict[str, Any]]:
-    """Search the verbatim Codex/Claude history index maintained by ingest_history.py."""
+    """Search opted-in verbatim history; an existing file is not new consent."""
+    if not retrieval_settings(root)["include_raw_history"]:
+        return []
     database = configured_history_database(root)
     if not database.is_file():
         return []
@@ -5457,7 +5507,8 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
             "snippet": row["snippet"],
             "rank": row["rank"],
         }
-        event = load_event_reference(row["ledger_ref"])
+        event = load_event_reference(row["ledger_ref"], root, row["event_id"], row["event_sha256"])
+        item["source_available"] = event is not None
         if event is not None:
             item.update(retrieval_metadata(event))
             item["statement"] = (
@@ -5575,6 +5626,7 @@ def search(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
     report["coverage"] = "local-snapshot; remote freshness and unshared history not established"
     report["alias_queries_attempted"] = len(queries)
     report["conflict_identity_coverage"] = "bounded-to-20-identities-and-1000-siblings"
+    report["raw_history_included"] = retrieval_settings(root)["include_raw_history"]
     report["result_limit"] = args.limit
     report["candidate_coverage"] = "bounded-lexical-candidates"
     report["truncated_fields"] += enforce_context_budget(report["results"], args.query, report["context_budget_characters"])
@@ -6026,12 +6078,12 @@ def credential_leak_issues(root: Path, connection: sqlite3.Connection) -> List[s
     issues: List[str] = []
     for row in connection.execute(
         """
-        SELECT e.event_id, e.ledger_ref, f.statement, f.content
+        SELECT e.event_id, e.ledger_ref, e.event_sha256, f.statement, f.content
         FROM history_events e JOIN history_fts f ON f.rowid = e.rowid
         WHERE e.is_credential = 1
         """
     ):
-        event = load_event_reference(row["ledger_ref"])
+        event = load_event_reference(row["ledger_ref"], root, row["event_id"], row["event_sha256"])
         if event is None:
             continue
         for _, value in credential_value_items(event):
