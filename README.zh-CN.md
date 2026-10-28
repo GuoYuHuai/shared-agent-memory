@@ -56,7 +56,7 @@ python3 examples/local_demo.py
 
 Agent 可以通过本地文件或 GitHub 工具使用知识库。不同产品使用同一份接入说明，由 Agent 检查当前可用的工具和权限。只有读取权限的 Agent 可以查阅知识，但不能保存修改。
 
-本地流程已在 macOS 验证，GitHub 流程也完成了真实读写检查。其他产品和系统的验证范围不同，具体集成请查看[兼容性说明](docs/compatibility.md)。
+本地工具已在 macOS、Linux 和 Windows 自动测试环境中验证，GitHub 流程也完成了真实读写检查。各款 Agent 的原生接入验证范围不同，具体集成请查看[兼容性说明](docs/compatibility.md)。
 
 ## 适合我吗？
 

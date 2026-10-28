@@ -4,7 +4,7 @@ Candidate date: 2026-10-28. This matrix separates implementation, contract tests
 
 | Environment/path | Implemented contract | Evidence boundary |
 | --- | --- | --- |
-| Generic local files + Python + Git | Local install and shared read/write engine | Installer, daily-command and local-only capture/commit/retrieval tests passed on the development Mac; see the current suite totals in the acceptance report |
+| Generic local files + Python + Git | Local install and shared read/write engine | Installer, daily-command and local-only capture/commit/retrieval tests passed on macOS and GitHub-hosted Ubuntu and Windows; see the acceptance report for totals |
 | Generic GitHub tools, no local CLI | Append/readback, consistent retrieval and ledger discovery | Node connector contracts passed; three fictional events and an index were written/read through live GitHub tools, and an independent Agent discovered the correction from the index on an isolated private fixture branch. This is not full native-host installation certification |
 | Read-only private repository | Source retrieval and unsaved proposal status | Limited by actual listing/read coverage |
 | Unknown Agent name | Capability-based route | No product-name rejection; not a native integration certification |
@@ -13,8 +13,8 @@ Candidate date: 2026-10-28. This matrix separates implementation, contract tests
 | Doubao Desktop | Generic protocol and capability mapping | Product/version/tool-specific validation pending |
 | WorkBuddy | Generic protocol and capability mapping | Product/version/tool-specific validation pending |
 | Future Agent | Same capability and adapter contract | Contributor must supply real evidence |
-| Windows | Portable Python contracts and inherited parsing behavior | Real Windows installation/scheduling pending |
-| Linux | Portable Python contracts | The Python and Node suites run on GitHub-hosted Ubuntu; desktop-host integration and native scheduling remain pending |
+| Windows | Local installation, Python contracts, native file locks and inherited parsing behavior | 501 Python tests, Node connector contracts and package checks passed on a GitHub-hosted Windows runner. Native Agent integration, scheduling and physical device transfer remain pending |
+| Linux | Local installation and Python contracts | 501 Python tests ran on GitHub-hosted Ubuntu: 500 passed and 1 Windows-only skip. Node and package checks passed; desktop-host integration and native scheduling remain pending |
 | macOS launchd deterministic background health | Register, query, execute and disable a managed one-shot task | A real background health run succeeded; test registration was removed afterward. This does not prove a background model or an ongoing installed schedule |
 | Removable directory | Mount and volume binding, portable source references and device-local receipts | Directory/device fixtures and a read-only probe of an actual external mount passed; physical disk transfer between computers remains unverified |
 | Two physical devices | Shared Git format and sync contract | One machine with two fixture directories is not this evidence |

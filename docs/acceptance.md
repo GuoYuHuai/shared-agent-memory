@@ -7,13 +7,26 @@ Public history contains tool sources, documentation and fictional fixtures only.
 
 ## 0.2.2 portability and transport checks
 
-The macOS full suite executed **496 tests: 495 passed and 1 Windows-only skip**
-in 170.734 seconds. Node connector contracts and the two-directory local demo
+The macOS full suite executed **501 tests: 500 passed and 1 Windows-only skip**
+in 173.184 seconds. Node connector contracts and the two-directory local demo
 also passed. These checks cover atomic create-only publication, storage capability
 probing, legacy device-state preservation, Linux XDG paths, volume identity fallbacks,
-Git URL rewrites, injected repository/index variables and existing SSH configuration.
-The Linux and Windows hosted matrix runs the full suite; its results must be read
-from the corresponding commit, not inferred from this local run.
+Git URL rewrites, injected repository/index variables, existing SSH configuration
+and preservation of user instruction bytes across Windows line endings.
+The [hosted run for code and tests at `1431963`](https://github.com/GuoYuHuai/shared-agent-memory/actions/runs/40689633631)
+passed on Ubuntu (501 run, 500 passed, 1 Windows-only skip) and Windows
+(501 passed across three groups: 268 core, 81 retrieval, 152 history). Node connector
+contracts and the 103-file public package check also passed on both systems.
+Subsequent release documentation and manifest updates do not change those scripts
+or tests. Hosted fixtures include real local installation and cross-process locking;
+they do not establish native Agent discovery, scheduler integration or physical
+cross-device operation.
+
+The first hosted runs exposed a Windows line-ending mismatch in installation
+receipts, plus test fixtures that left SQLite connections open, assumed Unix locks
+or APIs, or raced Git automatic maintenance. These were corrected without skipping
+failing behaviors. The Windows lock check now exercises the native backend in two
+processes and verifies reacquisition after release.
 
 A real temporary 64 MiB exFAT filesystem on macOS 27.0.1 rejected both hard links
 and exclusive rename with ENOTSUP. The installer refused before creating its target,
@@ -104,7 +117,7 @@ does not replace runtime testing or establish compatibility beyond the evidence 
 ## Remaining release scope
 
 Foreground generic/local and GitHub contracts are usable experimental paths. Claude,
-Doubao Desktop, WorkBuddy, desktop-host persistence, Windows installation,
+Doubao Desktop, WorkBuddy, desktop-host persistence, native Windows Agent integration,
 Linux desktop integration, two physical devices, native host scheduling, and real semantic-model curation need live
 validation. Remote canonical Markdown/alias parity, distributed maintenance
 leases, automatic oversized-event splitting and schema migration remain explicit follow-up

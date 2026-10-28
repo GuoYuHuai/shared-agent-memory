@@ -58,7 +58,7 @@ The sample saves a fictional fact, corrects it, and reads the correction from a 
 
 An agent can work with local files or with GitHub tools. The same setup guide works across products; the agent checks which operations it can perform in the current session. An agent that can only read can still retrieve knowledge, but cannot save changes.
 
-The local workflow has been tested on macOS, and the GitHub workflow includes live read/write checks. Other products and systems have varying test coverage. See [compatibility](docs/compatibility.md) before relying on a particular integration.
+The local tools are tested on macOS and on Linux and Windows CI runners. The GitHub workflow includes live read/write checks. Native Agent integrations have varying test coverage. See [compatibility](docs/compatibility.md) before relying on a particular integration.
 
 ## Is this a good fit?
 
