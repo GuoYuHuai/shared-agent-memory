@@ -44,6 +44,34 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual(subprocess.check_output(['git','-C',str(self.root),'remote'],text=True),'')
         self.assertFalse((self.root/'.kb-data/history.sqlite').exists())
         install.install(self.root,None,'local')
+
+    def test_rule_bytes_match_receipt_on_every_platform_and_uninstall(self):
+        result=install.install(self.root,None,'local')['installation']
+        content=(self.root/'AGENTS.md').read_bytes()
+        start,end=content.index(install.BEGIN.encode()),content.index(install.END.encode())+len(install.END)
+        self.assertEqual(content[start:end],install.block(self.root).encode('utf-8'))
+        self.assertEqual(install.digest(content[start:end].decode('utf-8')),result['block_hash'])
+        self.assertTrue(install.uninstall(self.root)['ok'])
+
+    def test_reinstall_and_uninstall_preserve_crlf_outside_legacy_rule(self):
+        install.install(self.root,None,'local')
+        rule=self.root/'AGENTS.md'
+        managed=install.block(self.root).replace('\n','\r\n').encode('utf-8')
+        prefix,suffix=b'Original user instructions\r\n',b'\r\nLater user text\r\n'
+        rule.write_bytes(prefix+managed+suffix)
+        self.assertTrue(install.install(self.root,None,'local')['ok'])
+        self.assertEqual(rule.read_bytes(),prefix+install.block(self.root).encode('utf-8')+suffix)
+        self.assertTrue(install.uninstall(self.root)['ok'])
+        self.assertEqual(rule.read_bytes(),prefix+suffix)
+
+    def test_uninstall_accepts_legacy_crlf_rule_without_prior_reinstall(self):
+        install.install(self.root,None,'local')
+        rule=self.root/'AGENTS.md'
+        managed=install.block(self.root).replace('\n','\r\n').encode('utf-8')
+        prefix,suffix=b'User prefix\r\n',b'\r\nUser suffix\r\n'
+        rule.write_bytes(prefix+managed+suffix)
+        self.assertTrue(install.uninstall(self.root)['ok'])
+        self.assertEqual(rule.read_bytes(),prefix+suffix)
     def test_removable_rebind_preserves_data_and_missing_mount_fails(self):
         install.install(self.root,None,'removable')
         record=self.root/'projects/keep.md';record.write_text('keep exact')

@@ -192,11 +192,15 @@ class SemanticBatchTests(unittest.TestCase):
             stderr=subprocess.DEVNULL,
             check=True,
         )
-        # Subsequent fixture commits and commit-tree calls must not depend on
-        # the developer's global Git identity (absent on clean CI workers).
+        # Fixture commits must not depend on global identity or launch detached
+        # maintenance that can still write objects while tearDown removes them.
+        # Git 2.55's default geometric maintenance can run after this first commit;
+        # gc.auto also covers older Git versions with automatic gc.
         for key, value in (
             ("user.name", "Semantic Test"),
             ("user.email", "semantic@example.test"),
+            ("maintenance.auto", "false"),
+            ("gc.auto", "0"),
         ):
             subprocess.run(
                 ["git", "config", "--local", key, value],

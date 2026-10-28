@@ -5,19 +5,50 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            group: all
+          - os: windows-latest
+            group: core
+          - os: windows-latest
+            group: retrieval
+          - os: windows-latest
+            group: history
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUTF8: '1'
+      TEST_GROUP: ${{ matrix.group }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Python contracts
-        run: python -m unittest discover -s tests -v
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import unittest
+
+          def group(path):
+              if path.name == 'test_kb.py':
+                  return 'retrieval'
+              if path.name in {'test_archive_raw_history.py', 'test_ingest_history.py', 'test_semantic_batches.py'}:
+                  return 'history'
+              return 'core'
+
+          selected = os.environ['TEST_GROUP']
+          suite = unittest.TestSuite()
+          for path in sorted(Path('tests').glob('test*.py')):
+              if selected == 'all' or group(path) == selected:
+                  suite.addTests(unittest.defaultTestLoader.discover('tests', pattern=path.name))
+          assert suite.countTestCases(), 'No tests selected'
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          raise SystemExit(0 if result.wasSuccessful() else 1)
+          PY
       - name: GitHub connector contracts
         run: node tests/test_github.mjs
       - name: Public package check

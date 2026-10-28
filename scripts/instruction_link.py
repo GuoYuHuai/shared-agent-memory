@@ -177,6 +177,12 @@ def _checked_span(content, receipt, receipt_path):
     if span is None:
         raise LinkError('managed-block-missing', 'The recorded block was removed. Preserve your edits; inspect the receipt at ' + str(receipt_path) + ' and reconcile it before reconnecting.')
     allowed = {receipt.get('block_hash')}
+    # Editors on Windows commonly translate LF to CRLF when restoring the
+    # recorded block. Accept that line-ending conversion alone; commands and
+    # all other characters must still match a verified owned block.
+    managed = receipt.get('managed_block')
+    if isinstance(managed, str) and digest(managed.encode('utf-8')) == receipt.get('block_hash'):
+        allowed.add(digest(managed.encode('utf-8').replace(b'\r\n', b'\n')))
     pending = receipt.get('pending_update')
     if receipt.get('connection') == 'pending' and isinstance(pending, dict):
         # The receipt is saved before replacing the file. An interrupted update
@@ -184,7 +190,9 @@ def _checked_span(content, receipt, receipt_path):
         previous = pending.get('managed_block')
         if isinstance(previous, str) and digest(previous.encode('utf-8')) == pending.get('block_hash'):
             allowed.add(pending['block_hash'])
-    if digest(content[span[0]:span[1]]) not in allowed:
+            allowed.add(digest(previous.encode('utf-8').replace(b'\r\n', b'\n')))
+    current = content[span[0]:span[1]]
+    if digest(current) not in allowed and digest(current.replace(b'\r\n', b'\n')) not in allowed:
         raise LinkError('managed-block-edited', 'Move your custom edits outside the managed markers, restore the exact managed_block from ' + str(receipt_path) + ', then disconnect and reconnect. Nothing has been overwritten.')
     return span
 

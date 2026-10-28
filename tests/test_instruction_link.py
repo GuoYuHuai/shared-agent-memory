@@ -54,8 +54,10 @@ class InstructionLinkTests(unittest.TestCase):
         self.assertEqual(connected['connection'], 'connected')
         self.assertEqual(connected['persistent_activation'], 'not-verified')
         text = self.target.read_text()
-        self.assertIn(str(self.root), text)
-        self.assertIn(str(ROOT), text)
+        paths = {line.split(': ', 1)[0]: json.loads(line.split(': ', 1)[1])
+                 for line in text.splitlines() if '(JSON path): ' in line}
+        self.assertEqual(paths['Knowledge root (JSON path)'], str(self.root))
+        self.assertEqual(paths['Tool root (JSON path)'], str(ROOT))
         for value in ('POLICY.md', 'scripts/ak.py', 'recall QUERY', 'remember STATEMENT', 'correct OLD_ID', 'sync', 'hot_sync', '--value-file'):
             self.assertIn(value, text)
         self.assertNotIn('DO-NOT-COPY-THIS-VALUE', text)
@@ -185,7 +187,9 @@ class InstructionLinkTests(unittest.TestCase):
         with mock.patch.object(install, 'TOOL_ROOT', changed_tool), mock.patch.object(link, 'TOOL_ROOT', changed_tool):
             self.assertTrue(install.install(self.root, None, 'local')['ok'])
             self.assertTrue(link.connect(self.root, self.target)['ok'])
-            self.assertIn(str(changed_tool), self.target.read_text())
+            path_line = next(line for line in self.target.read_text().splitlines()
+                             if line.startswith('Tool root (JSON path): '))
+            self.assertEqual(json.loads(path_line.split(': ', 1)[1]), str(changed_tool))
 
     def test_same_tool_installation_keeps_active_link_and_new_devices_can_rebind(self):
         link.connect(self.root, self.target)
@@ -365,6 +369,27 @@ class InstructionLinkTests(unittest.TestCase):
         self.target.write_text('Custom instructions moved outside.\n' + receipt['managed_block'] + '\n')
         self.assertTrue(link.disconnect(self.root, self.target)['ok'])
         self.assertEqual(self.target.read_text(), 'Custom instructions moved outside.\n\n')
+
+    def test_crlf_restored_block_preserves_surrounding_user_bytes(self):
+        link.connect(self.root, self.target)
+        receipt = json.loads(self.receipt().read_text())
+        restored = receipt['managed_block'].replace('\n', '\r\n').encode('utf-8')
+        prefix, suffix = b'User rules before\r\n', b'\r\nUser rules after\r\n'
+        self.target.write_bytes(prefix + restored + suffix)
+        before = self.target.read_bytes()
+        self.assertTrue(link.status(self.root, self.target)['ok'])
+        self.assertEqual(self.target.read_bytes(), before)
+        self.assertTrue(link.disconnect(self.root, self.target)['ok'])
+        self.assertEqual(self.target.read_bytes(), prefix + suffix)
+
+    def test_crlf_conversion_does_not_allow_other_managed_block_edits(self):
+        link.connect(self.root, self.target)
+        restored = json.loads(self.receipt().read_text())['managed_block'].replace('\n', '\r\n')
+        self.target.write_bytes(restored.replace('recall QUERY', 'custom command').encode('utf-8'))
+        before = self.target.read_bytes(), self.receipt().read_bytes()
+        for action in (link.status, link.connect, link.disconnect):
+            self.assertEqual(action(self.root, self.target)['reason'], 'managed-block-edited')
+        self.assertEqual(before, (self.target.read_bytes(), self.receipt().read_bytes()))
 
     def test_foreign_block_without_receipt_is_never_adopted(self):
         self.target.write_text(link.BEGIN + '\nForeign connection\n' + link.END)

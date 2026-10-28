@@ -1,5 +1,6 @@
 import json
 import importlib.util
+from contextlib import closing
 import os
 import shutil
 import sqlite3
@@ -2571,18 +2572,22 @@ class KnowledgeBaseCLITests(unittest.TestCase):
         source.write_text(json.dumps(records), encoding="utf-8")
         self.json_cli("init")
         database = self.root / ".kb-data/knowledge.sqlite"
-        with sqlite3.connect(database) as connection:
-            # Version 6/1 omitted these valid candidate IDs from its projection.
-            connection.execute("DELETE FROM lifecycle_resolutions")
-            connection.execute("UPDATE kb_meta SET value='6' WHERE key='index_projection_version'")
-            connection.execute("UPDATE kb_meta SET value='1' WHERE key='lifecycle_projection_version'")
+        # A connection context commits but does not close. Close this writer
+        # before a test snapshots the database bytes, so a later GC-triggered
+        # WAL checkpoint cannot be mistaken for a mutation by the read path.
+        with closing(sqlite3.connect(database)) as connection:
+            with connection:
+                # Version 6/1 omitted these valid IDs from its projection.
+                connection.execute("DELETE FROM lifecycle_resolutions")
+                connection.execute("UPDATE kb_meta SET value='6' WHERE key='index_projection_version'")
+                connection.execute("UPDATE kb_meta SET value='1' WHERE key='lifecycle_projection_version'")
         return source, database
 
     def test_legacy_lifecycle_projection_read_falls_back_without_mutating_cache(self):
         source, database = self.legacy_lifecycle_projection_fixture()
         original_source, original_database = source.read_bytes(), database.read_bytes()
         module = load_kb_module()
-        with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+        with closing(sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True)) as connection:
             connection.row_factory = sqlite3.Row
             with self.assertRaises(LookupError):
                 module.lifecycle_maps_from_database(connection)
@@ -2600,7 +2605,7 @@ class KnowledgeBaseCLITests(unittest.TestCase):
         result = module.update_index(self.root)
         self.assertEqual(result["mode"], "full-rebuild")
         self.assertEqual(result["fallback_reason"], "projection-version")
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection:
             self.assertEqual(dict(connection.execute("SELECT candidate_id, resolution FROM lifecycle_resolutions")),
                              {"accepted": "accepted", "rejected": "rejected"})
             metadata = dict(connection.execute("SELECT key, value FROM kb_meta"))
@@ -2621,7 +2626,7 @@ class KnowledgeBaseCLITests(unittest.TestCase):
                          {"accepted": "accepted", "rejected": "rejected"})
         self.assertEqual(result["current_count"], 1)
         self.assertEqual(result["freshness"]["index_status"], "refreshed")
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection:
             self.assertEqual(dict(connection.execute("SELECT candidate_id, resolution FROM lifecycle_resolutions")),
                              {"accepted": "accepted", "rejected": "rejected"})
         self.assertEqual(source.read_bytes(), original_source)
