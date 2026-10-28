@@ -192,6 +192,19 @@ class SemanticBatchTests(unittest.TestCase):
             stderr=subprocess.DEVNULL,
             check=True,
         )
+        # Subsequent fixture commits and commit-tree calls must not depend on
+        # the developer's global Git identity (absent on clean CI workers).
+        for key, value in (
+            ("user.name", "Semantic Test"),
+            ("user.email", "semantic@example.test"),
+        ):
+            subprocess.run(
+                ["git", "config", "--local", key, value],
+                cwd=str(destination),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
         subprocess.run(
             ["git", "add", "."],
             cwd=str(destination),

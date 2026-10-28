@@ -81,7 +81,7 @@
     "tests/test_public_automation.py": "4a774532aab44c039e81ad387aa74f256db68615b1593f892877162fbb3f5947",
     "tests/test_record_schema.py": "72491e73ce74dafd455b25c4739b9d7b5923106888920b931fd81cd813c4a3b8",
     "tests/test_retrieval_public.py": "1a313f9e138933217fc2bc4714fd9f1a3e80aa7cdfbca80a07ff4c352371af0d",
-    "tests/test_semantic_batches.py": "74b4b3fd7ced63a040f4cc1a64f6defbf27a176346fc0c045062ef4022fabb36",
+    "tests/test_semantic_batches.py": "cdfec9e502910d745be9a313efb20d94419eef1fcee48bc7869878a75ea7d598",
     "tests/test_workspace_lock.py": "f5193e5a8166a0d39108a4c73bcff9a47f33f51444b375c048543a973e669110"
   }
 }
