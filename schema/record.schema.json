@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ai-knowledge/record.schema.json",
+  "title": "AI Knowledge Ledger / Candidate Record",
+  "description": "Executed contract for records under ledger/ and inbox/candidates/. Runtime gate: scripts/kb.py event_validation_errors (capture refuses records that violate the required set). Repository gate: tests/test_record_schema.py validates every committed record against this file, so schema and reality cannot drift silently. Update the schema, the validator and the test together. Records under resources/ are canonical current-view projections derived from these events and are intentionally out of scope.",
+  "type": "object",
+  "required": [
+    "id",
+    "kind",
+    "scope",
+    "statement",
+    "status",
+    "authority",
+    "source",
+    "created_at",
+    "source_device_id"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Open classification. Sensitivity never depends on this free-form label: every record containing a value field is redacted by default and active source-backed value records are materialized for exact retrieval.",
+      "examples": [
+        "fact",
+        "decision",
+        "preference",
+        "workflow",
+        "resource",
+        "credential",
+        "account",
+        "repository",
+        "project-fact",
+        "project-goal",
+        "project-risk",
+        "conflict",
+        "user-fact",
+        "warning",
+        "lesson"
+      ]
+    },
+    "scope": {"type": "string", "minLength": 1},
+    "statement": {"type": "string", "minLength": 1},
+    "value": {},
+    "status": {
+      "type": "string",
+      "minLength": 1,
+      "examples": ["active", "candidate", "superseded", "disputed", "archived", "rejected"]
+    },
+    "authority": {
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "user-explicit",
+        "user-stated",
+        "agent-inference",
+        "imported",
+        "system-verified",
+        "verified-current-system-state",
+        "verified-project-source",
+        "verified-workflow-observation",
+        "user-authorized-agent-generated"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Provenance reference such as thread:<id>/message:<n>, a file path, or a user statement descriptor. This is a string in every committed record; the pre-2026-07 draft that required an object was never implemented."
+    },
+    "created_at": {"type": "string", "minLength": 1},
+    "source_device_id": {"type": "string", "minLength": 1},
+    "schema_version": {"type": "string"},
+    "bundle_id": {"type": "string"},
+    "imported_from": {"type": "string"},
+    "candidate_state": {"type": "string"},
+    "captured_at": {"type": "string"},
+    "expires_at": {"type": ["string", "null"]},
+    "environment": {"type": ["string", "null"]},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "supersedes": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "tool_version": "0.1.0-experimental",
+  "knowledge_base_id": "public-tool-template",
+  "canonical_zones": {
+    "profile": "profile",
+    "projects": "projects",
+    "resources": "resources",
+    "playbooks": "playbooks"
+  },
+  "supporting_zones": {
+    "ledger": "ledger",
+    "inbox": "inbox",
+    "runtime_data": ".kb-data"
+  }
+}

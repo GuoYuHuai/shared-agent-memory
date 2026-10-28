@@ -1,0 +1,21 @@
+name: New Agent or platform adapter
+description: Propose an adapter by capability rather than product name.
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Host, version, platform and available tools
+    validations:
+      required: true
+  - type: textarea
+    id: mapping
+    attributes:
+      label: Capability mapping and missing operations
+      description: Explain repository reads/writes, snapshot checks, persistence, history, scheduler and unattended model separately.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Validation evidence
+      description: Include read/write/readback/correction, repeated installation, permissions, version races, actual host results and unverified gaps.

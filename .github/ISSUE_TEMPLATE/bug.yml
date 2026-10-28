@@ -1,0 +1,22 @@
+name: Capability or correctness bug
+description: Report a reproducible failure with fictional or approved evidence.
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and actual capabilities
+      description: Agent/version, OS/version, tool release, schema, tools, permissions and chosen mode.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Steps, expected result, actual result and whether this is a mock, isolated fixture or real host.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and remaining uncertainty
+      description: Small diagnostic excerpts, stable fictional IDs, operation times and readback results. Do not upload personal knowledge, private history, tokens or device configuration.

@@ -1,0 +1,14 @@
+name: contracts
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core and adapter contracts
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -m unittest discover -s tests -v
+          node tests/test_github.mjs
+          python3 scripts/release_check.py

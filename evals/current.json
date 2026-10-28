@@ -1,0 +1,320 @@
+{
+  "fixture": "synthetic-v1",
+  "cases": 24,
+  "passed": 24,
+  "correct_current_first_rate": 1.0,
+  "model_usage": "not-used",
+  "supplementary_user_questions": "not-measured",
+  "scope": "local deterministic retrieval, not cross-product or physical-device validation",
+  "results": [
+    {
+      "id": "Q01",
+      "pass": true,
+      "expected_current_first": "atlas-color",
+      "actual_current_ids": [
+        "atlas-color"
+      ],
+      "returned_ids": [
+        "atlas-color",
+        "atlas-inferred"
+      ],
+      "seconds": 0.002143,
+      "context_characters": 969
+    },
+    {
+      "id": "Q02",
+      "pass": true,
+      "expected_current_first": "atlas-color",
+      "actual_current_ids": [
+        "atlas-color"
+      ],
+      "returned_ids": [
+        "atlas-color",
+        "atlas-inferred"
+      ],
+      "seconds": 0.001115,
+      "context_characters": 970
+    },
+    {
+      "id": "Q03",
+      "pass": true,
+      "expected_current_first": "atlas-color",
+      "actual_current_ids": [
+        "atlas-color"
+      ],
+      "returned_ids": [
+        "atlas-color"
+      ],
+      "seconds": 0.000947,
+      "context_characters": 484
+    },
+    {
+      "id": "Q04",
+      "pass": true,
+      "expected_current_first": "atlas-release",
+      "actual_current_ids": [
+        "atlas-release"
+      ],
+      "returned_ids": [
+        "atlas-release"
+      ],
+      "seconds": 0.001568,
+      "context_characters": 499
+    },
+    {
+      "id": "Q05",
+      "pass": true,
+      "expected_current_first": "atlas-release",
+      "actual_current_ids": [
+        "atlas-release"
+      ],
+      "returned_ids": [
+        "atlas-release"
+      ],
+      "seconds": 0.000822,
+      "context_characters": 493
+    },
+    {
+      "id": "Q06",
+      "pass": true,
+      "expected_current_first": "atlas-release",
+      "actual_current_ids": [
+        "atlas-release"
+      ],
+      "returned_ids": [
+        "atlas-release"
+      ],
+      "seconds": 0.001031,
+      "context_characters": 499
+    },
+    {
+      "id": "Q07",
+      "pass": true,
+      "expected_current_first": "atlas-storage",
+      "actual_current_ids": [
+        "atlas-storage"
+      ],
+      "returned_ids": [
+        "atlas-storage"
+      ],
+      "seconds": 0.001688,
+      "context_characters": 485
+    },
+    {
+      "id": "Q08",
+      "pass": true,
+      "expected_current_first": "atlas-storage",
+      "actual_current_ids": [
+        "atlas-storage"
+      ],
+      "returned_ids": [
+        "atlas-storage"
+      ],
+      "seconds": 0.001368,
+      "context_characters": 488
+    },
+    {
+      "id": "Q09",
+      "pass": true,
+      "expected_current_first": "atlas-device-a",
+      "actual_current_ids": [
+        "atlas-device-a"
+      ],
+      "returned_ids": [
+        "atlas-device-a"
+      ],
+      "seconds": 0.000999,
+      "context_characters": 489
+    },
+    {
+      "id": "Q10",
+      "pass": true,
+      "expected_current_first": "atlas-device-b",
+      "actual_current_ids": [
+        "atlas-device-b"
+      ],
+      "returned_ids": [
+        "atlas-device-b"
+      ],
+      "seconds": 0.000897,
+      "context_characters": 489
+    },
+    {
+      "id": "Q11",
+      "pass": true,
+      "expected_current_first": "beacon-color",
+      "actual_current_ids": [
+        "beacon-color"
+      ],
+      "returned_ids": [
+        "beacon-color"
+      ],
+      "seconds": 0.000874,
+      "context_characters": 484
+    },
+    {
+      "id": "Q12",
+      "pass": true,
+      "expected_current_first": "beacon-color",
+      "actual_current_ids": [
+        "beacon-color"
+      ],
+      "returned_ids": [
+        "beacon-color"
+      ],
+      "seconds": 0.000895,
+      "context_characters": 482
+    },
+    {
+      "id": "Q13",
+      "pass": true,
+      "expected_current_first": null,
+      "actual_current_ids": [],
+      "returned_ids": [
+        "atlas-expired"
+      ],
+      "seconds": 0.000989,
+      "context_characters": 548
+    },
+    {
+      "id": "Q14",
+      "pass": true,
+      "expected_current_first": null,
+      "actual_current_ids": [],
+      "returned_ids": [
+        "atlas-disputed"
+      ],
+      "seconds": 0.000857,
+      "context_characters": 473
+    },
+    {
+      "id": "Q15",
+      "pass": true,
+      "expected_current_first": null,
+      "actual_current_ids": [],
+      "returned_ids": [
+        "atlas-archive"
+      ],
+      "seconds": 0.001036,
+      "context_characters": 472
+    },
+    {
+      "id": "Q16",
+      "pass": true,
+      "expected_current_first": "atlas-source-new",
+      "actual_current_ids": [
+        "atlas-source-new",
+        "atlas-source-old"
+      ],
+      "returned_ids": [
+        "atlas-source-new",
+        "atlas-source-old"
+      ],
+      "seconds": 0.00109,
+      "context_characters": 1026
+    },
+    {
+      "id": "Q17",
+      "pass": true,
+      "expected_current_first": "atlas-source-new",
+      "actual_current_ids": [
+        "atlas-source-new",
+        "atlas-source-old"
+      ],
+      "returned_ids": [
+        "atlas-source-new",
+        "atlas-source-old"
+      ],
+      "seconds": 0.001042,
+      "context_characters": 1032
+    },
+    {
+      "id": "Q18",
+      "pass": true,
+      "expected_current_first": "atlas-current",
+      "actual_current_ids": [
+        "atlas-current"
+      ],
+      "returned_ids": [
+        "atlas-current",
+        "atlas-old"
+      ],
+      "seconds": 0.00104,
+      "context_characters": 1012
+    },
+    {
+      "id": "Q19",
+      "pass": true,
+      "expected_current_first": null,
+      "actual_current_ids": [],
+      "returned_ids": [
+        "atlas-unknown"
+      ],
+      "seconds": 0.000892,
+      "context_characters": 486
+    },
+    {
+      "id": "Q20",
+      "pass": true,
+      "expected_current_first": null,
+      "actual_current_ids": [],
+      "returned_ids": [
+        "atlas-reject"
+      ],
+      "seconds": 0.000837,
+      "context_characters": 471
+    },
+    {
+      "id": "Q21",
+      "pass": true,
+      "expected_current_first": null,
+      "actual_current_ids": [],
+      "returned_ids": [],
+      "seconds": 0.000606,
+      "context_characters": 2
+    },
+    {
+      "id": "Q22",
+      "pass": true,
+      "expected_current_first": "atlas-color",
+      "actual_current_ids": [
+        "atlas-color"
+      ],
+      "returned_ids": [
+        "atlas-color",
+        "atlas-inferred"
+      ],
+      "seconds": 0.000995,
+      "context_characters": 969
+    },
+    {
+      "id": "Q23",
+      "pass": true,
+      "expected_current_first": "atlas-release",
+      "actual_current_ids": [
+        "atlas-release"
+      ],
+      "returned_ids": [
+        "atlas-release"
+      ],
+      "seconds": 0.001373,
+      "context_characters": 499
+    },
+    {
+      "id": "Q24",
+      "pass": true,
+      "expected_current_first": "atlas-release",
+      "actual_current_ids": [
+        "atlas-release"
+      ],
+      "returned_ids": [
+        "atlas-release"
+      ],
+      "seconds": 0.001453,
+      "context_characters": 499
+    }
+  ],
+  "expected_source_recall_at_3": 1.0,
+  "expired_or_disputed_current_cases": 0,
+  "no_evidence_but_current_answer_cases": 0
+}

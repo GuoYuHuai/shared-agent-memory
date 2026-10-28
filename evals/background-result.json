@@ -1,0 +1,28 @@
+{
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "registration": "registered",
+  "trial": "succeeded",
+  "last_success": "2026-10-28T08:11:26.715843+00:00",
+  "last_run": {
+    "started_at": "2026-10-28T08:11:26.715246+00:00",
+    "input_events": null,
+    "model": null,
+    "usage": {
+      "status": "not-applicable",
+      "model_calls": 0
+    },
+    "retry_count": 0,
+    "execution_id": "581e46945b0342c29fb2617f369b465e",
+    "ok": true,
+    "validated_json_files": 1,
+    "coverage": "hot-json-syntax-and-policy",
+    "semantic_review": "not-performed",
+    "finished_at": "2026-10-28T08:11:26.715843+00:00",
+    "elapsed_seconds": 0.001
+  },
+  "interval_change_rejected": true,
+  "plan_interval_change_rejected": true,
+  "interval_receipt_preserved": true,
+  "teardown_registration": "disabled",
+  "scheduler_removed": true
+}

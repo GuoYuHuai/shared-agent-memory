@@ -1,0 +1,5 @@
+.kb-data/
+generated/
+__pycache__/
+*.pyc
+.DS_Store

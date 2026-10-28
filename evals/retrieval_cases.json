@@ -1,0 +1,387 @@
+{
+  "config": {
+    "retrieval": {
+      "scope_aliases": {
+        "project:atlas": [
+          "星图",
+          "atlas"
+        ]
+      },
+      "query_aliases": {
+        "release": [
+          "发布计划"
+        ]
+      }
+    }
+  },
+  "events": [
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-color",
+      "statement": "界面 配色 color 蓝色 blue"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-release",
+      "statement": "上线 release shipping 日期 11月"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-storage",
+      "statement": "storage 存储 local 本地文件"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "device:a",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-device-a",
+      "statement": "path 路径 /fiction/device-a"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "device:b",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-device-b",
+      "statement": "path 路径 /fiction/device-b"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:beacon",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "beacon-color",
+      "statement": "界面 配色 color 红色 red"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "candidate",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-unknown",
+      "statement": "unconfirmed 实验 未确认"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-expired",
+      "statement": "endpoint 地址 https://expired.example.test",
+      "expires_at": "2020-01-01T00:00:00Z"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "disputed",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-disputed",
+      "statement": "quota 配额 100"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "archived",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-archive",
+      "statement": "archive 旧日说明"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-source-new",
+      "statement": "region 区域 east",
+      "observed_at": "2026-09-01T00:00:00Z"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-20T00:00:00Z",
+      "id": "atlas-source-old",
+      "statement": "region 区域 west",
+      "observed_at": "2020-01-01T00:00:00Z"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-current",
+      "statement": "launch 当前 new",
+      "observed_at": "2026-10-01T00:00:00Z"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-20T00:00:00Z",
+      "id": "atlas-old",
+      "statement": "launch 过去 old"
+    },
+    {
+      "schema_version": "1",
+      "kind": "supersession",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-edge",
+      "statement": "replacement",
+      "old_id": "atlas-old",
+      "new_id": "atlas-current"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "rejected",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-reject",
+      "statement": "rejected 不采用"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "user-stated",
+      "status": "active",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-unrelated",
+      "statement": "general unrelated note"
+    },
+    {
+      "schema_version": "1",
+      "kind": "fact",
+      "scope": "project:atlas",
+      "source": "synthetic:fixture",
+      "authority": "agent-inference",
+      "status": "candidate",
+      "source_device_id": "device-a",
+      "created_at": "2026-10-01T00:00:00Z",
+      "id": "atlas-inferred",
+      "statement": "color 配色 yellow"
+    }
+  ],
+  "cases": [
+    {
+      "id": "Q01",
+      "query": "color",
+      "scope": "project:atlas",
+      "expected": "atlas-color"
+    },
+    {
+      "id": "Q02",
+      "query": "配色",
+      "scope": "project:atlas",
+      "expected": "atlas-color"
+    },
+    {
+      "id": "Q03",
+      "query": "blue",
+      "scope": "project:atlas",
+      "expected": "atlas-color"
+    },
+    {
+      "id": "Q04",
+      "query": "release",
+      "scope": "project:atlas",
+      "expected": "atlas-release"
+    },
+    {
+      "id": "Q05",
+      "query": "上线",
+      "scope": "project:atlas",
+      "expected": "atlas-release"
+    },
+    {
+      "id": "Q06",
+      "query": "shipping",
+      "scope": "project:atlas",
+      "expected": "atlas-release"
+    },
+    {
+      "id": "Q07",
+      "query": "storage",
+      "scope": "project:atlas",
+      "expected": "atlas-storage"
+    },
+    {
+      "id": "Q08",
+      "query": "存储",
+      "scope": "project:atlas",
+      "expected": "atlas-storage"
+    },
+    {
+      "id": "Q09",
+      "query": "path",
+      "scope": "device:a",
+      "expected": "atlas-device-a"
+    },
+    {
+      "id": "Q10",
+      "query": "path",
+      "scope": "device:b",
+      "expected": "atlas-device-b"
+    },
+    {
+      "id": "Q11",
+      "query": "color",
+      "scope": "project:beacon",
+      "expected": "beacon-color"
+    },
+    {
+      "id": "Q12",
+      "query": "配色",
+      "scope": "project:beacon",
+      "expected": "beacon-color"
+    },
+    {
+      "id": "Q13",
+      "query": "endpoint",
+      "scope": "project:atlas",
+      "expected": null
+    },
+    {
+      "id": "Q14",
+      "query": "quota",
+      "scope": "project:atlas",
+      "expected": null
+    },
+    {
+      "id": "Q15",
+      "query": "archive",
+      "scope": "project:atlas",
+      "expected": null
+    },
+    {
+      "id": "Q16",
+      "query": "region",
+      "scope": "project:atlas",
+      "expected": "atlas-source-new"
+    },
+    {
+      "id": "Q17",
+      "query": "区域",
+      "scope": "project:atlas",
+      "expected": "atlas-source-new"
+    },
+    {
+      "id": "Q18",
+      "query": "launch",
+      "scope": "project:atlas",
+      "expected": "atlas-current"
+    },
+    {
+      "id": "Q19",
+      "query": "unconfirmed",
+      "scope": "project:atlas",
+      "expected": null
+    },
+    {
+      "id": "Q20",
+      "query": "rejected",
+      "scope": "project:atlas",
+      "expected": null
+    },
+    {
+      "id": "Q21",
+      "query": "nonexistent-quasar",
+      "scope": "project:atlas",
+      "expected": null
+    },
+    {
+      "id": "Q22",
+      "query": "color",
+      "scope": "星图",
+      "expected": "atlas-color"
+    },
+    {
+      "id": "Q23",
+      "query": "release",
+      "scope": "atlas",
+      "expected": "atlas-release"
+    },
+    {
+      "id": "Q24",
+      "query": "发布计划",
+      "scope": "project:atlas",
+      "expected": "atlas-release"
+    }
+  ]
+}
