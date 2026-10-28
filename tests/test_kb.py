@@ -163,6 +163,66 @@ class KnowledgeBaseCLITests(unittest.TestCase):
         self.assertTrue(paths["source_device_id"])
         self.assertEqual(paths["ledger"], str(self.root.resolve() / "ledger"))
 
+    def test_capture_reports_saved_after_projection_failure_and_repairs_same_id(self):
+        self.json_cli("init")
+        module = load_kb_module()
+        args = module.build_parser().parse_args(['--root', str(self.root), 'capture',
+            '--id', 'capture-recovery', '--kind', 'fact', '--scope', 'project:atlas',
+            '--statement', 'Atlas exact configuration', '--value', 'first\r\nsecond\r\n',
+            '--source', 'fictional:recovery', '--authority', 'user-stated'])
+        with mock.patch.object(module, 'hot_locator_record_source', side_effect=OSError('fictional-private-detail')):
+            result = module.run(args)
+        self.assertFalse(result['ok'])
+        self.assertTrue(result['saved'])
+        self.assertTrue(result['readback'])
+        self.assertEqual(result['recovery']['failures'][0]['stage'], 'hot-locator')
+        self.assertNotIn('fictional-private-detail', json.dumps(result))
+        path = self.root / result['ledger']
+        original = path.read_bytes()
+        self.assertEqual(json.loads(original)['value'], 'first\r\nsecond\r\n')
+        repaired = module.run(args)
+        self.assertTrue(repaired['ok'], repaired)
+        self.assertTrue(repaired['duplicate'])
+        self.assertEqual(repaired['index_status'], 'current')
+        self.assertEqual(path.read_bytes(), original)
+
+    def test_capture_after_publication_durability_error_is_saved_not_an_unsaved_retry(self):
+        self.json_cli("init")
+        module = load_kb_module()
+        args = module.build_parser().parse_args(['--root', str(self.root), 'capture',
+            '--id', 'published-capture', '--kind', 'fact', '--scope', 'project:atlas',
+            '--statement', 'Atlas durable fact', '--source', 'fictional:recovery', '--authority', 'user-stated'])
+        publish = module.atomic_json_create
+        def interrupted(path, value):
+            publish(path, value)
+            raise OSError('fictional directory durability error')
+        with mock.patch.object(module, 'atomic_json_create', side_effect=interrupted):
+            result = module.run(args)
+        self.assertFalse(result['ok'])
+        self.assertTrue(result['saved'])
+        self.assertTrue(result['readback'])
+        self.assertEqual(result['recovery']['failures'][0]['stage'], 'publication-durability')
+        original = (self.root / result['ledger']).read_bytes()
+        repaired = module.run(args)
+        self.assertTrue(repaired['ok'], repaired)
+        self.assertTrue(repaired['duplicate'])
+        self.assertEqual((self.root / result['ledger']).read_bytes(), original)
+
+    def test_capture_readback_failure_does_not_claim_verified_capture(self):
+        self.json_cli("init")
+        module = load_kb_module()
+        args = module.build_parser().parse_args(['--root', str(self.root), 'capture',
+            '--id', 'unreadable-capture', '--kind', 'fact', '--scope', 'project:atlas',
+            '--statement', 'Atlas fact', '--source', 'fictional:recovery', '--authority', 'user-stated'])
+        with mock.patch.object(module, 'load_event_reference', side_effect=PermissionError('fictional readback denied')):
+            result = module.run(args)
+        self.assertFalse(result['ok'])
+        self.assertTrue(result['saved'])
+        self.assertFalse(result['readback'])
+        self.assertTrue(result['recovery_required'])
+        self.assertEqual(result['recovery']['failures'][0]['stage'], 'readback')
+        self.assertTrue(module.run(args)['readback'])
+
     def test_hot_mutations_fail_retryably_before_writes_while_workspace_is_locked(self):
         for event_id in (
             "evt-lock-old",
@@ -2494,6 +2554,78 @@ class KnowledgeBaseCLITests(unittest.TestCase):
         self.assertFalse(item["credential"])
         self.assertNotIn("credential_value_status", item)
 
+    def legacy_lifecycle_projection_fixture(self):
+        ledger = self.root / "ledger"
+        ledger.mkdir(exist_ok=True)
+        records = []
+        for decision in ("accepted", "rejected"):
+            base = {"schema_version": "1", "created_at": "2026-01-01T00:00:00Z",
+                    "kind": "fact", "scope": "project:upgrade", "statement": "upgrade-marker " + decision,
+                    "source": "fictional:upgrade", "authority": "agent-inference",
+                    "status": "candidate", "source_device_id": "fixture-device"}
+            records.append(dict(base, id=decision))
+            records.append(dict(base, id="review-" + decision, kind="candidate-resolution",
+                                authority="maintainer", status="active", candidate_id=decision,
+                                resolution=decision, created_at="2026-02-01T00:00:00Z"))
+        source = ledger / "upgrade.json"
+        source.write_text(json.dumps(records), encoding="utf-8")
+        self.json_cli("init")
+        database = self.root / ".kb-data/knowledge.sqlite"
+        with sqlite3.connect(database) as connection:
+            # Version 6/1 omitted these valid candidate IDs from its projection.
+            connection.execute("DELETE FROM lifecycle_resolutions")
+            connection.execute("UPDATE kb_meta SET value='6' WHERE key='index_projection_version'")
+            connection.execute("UPDATE kb_meta SET value='1' WHERE key='lifecycle_projection_version'")
+        return source, database
+
+    def test_legacy_lifecycle_projection_read_falls_back_without_mutating_cache(self):
+        source, database = self.legacy_lifecycle_projection_fixture()
+        original_source, original_database = source.read_bytes(), database.read_bytes()
+        module = load_kb_module()
+        with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+            connection.row_factory = sqlite3.Row
+            with self.assertRaises(LookupError):
+                module.lifecycle_maps_from_database(connection)
+            self.assertEqual(module.lifecycle_maps_for_read(self.root, connection)[1],
+                             {"accepted": "accepted", "rejected": "rejected"})
+        self.assertEqual(module.lifecycle_maps_for_read(self.root)[1],
+                         {"accepted": "accepted", "rejected": "rejected"})
+        self.assertEqual(source.read_bytes(), original_source)
+        self.assertEqual(database.read_bytes(), original_database)
+
+    def test_legacy_lifecycle_projection_update_rebuilds_without_source_changes(self):
+        source, database = self.legacy_lifecycle_projection_fixture()
+        original_source, original_mtime = source.read_bytes(), source.stat().st_mtime_ns
+        module = load_kb_module()
+        result = module.update_index(self.root)
+        self.assertEqual(result["mode"], "full-rebuild")
+        self.assertEqual(result["fallback_reason"], "projection-version")
+        with sqlite3.connect(database) as connection:
+            self.assertEqual(dict(connection.execute("SELECT candidate_id, resolution FROM lifecycle_resolutions")),
+                             {"accepted": "accepted", "rejected": "rejected"})
+            metadata = dict(connection.execute("SELECT key, value FROM kb_meta"))
+        self.assertEqual(metadata["index_projection_version"], module.INDEX_PROJECTION_VERSION)
+        self.assertEqual(metadata["lifecycle_projection_version"], module.LIFECYCLE_PROJECTION_VERSION)
+        self.assertEqual(source.read_bytes(), original_source)
+        self.assertEqual(source.stat().st_mtime_ns, original_mtime)
+        self.assertEqual(module.SCHEMA_VERSION, "1")
+
+    def test_legacy_lifecycle_projection_foreground_retrieve_repairs_old_decisions(self):
+        source, database = self.legacy_lifecycle_projection_fixture()
+        original_source = source.read_bytes()
+        load_kb_module()  # Makes this tool release's scripts importable.
+        import retrieve
+        with mock.patch.object(retrieve.device_identity, "platform_fingerprint", return_value="fictional-device"):
+            result = retrieve.retrieve(self.root, "upgrade-marker", scope="project:upgrade", offline=True)
+        self.assertEqual({item["id"]: item["effective_status"] for item in result["results"]},
+                         {"accepted": "accepted", "rejected": "rejected"})
+        self.assertEqual(result["current_count"], 1)
+        self.assertEqual(result["freshness"]["index_status"], "refreshed")
+        with sqlite3.connect(database) as connection:
+            self.assertEqual(dict(connection.execute("SELECT candidate_id, resolution FROM lifecycle_resolutions")),
+                             {"accepted": "accepted", "rejected": "rejected"})
+        self.assertEqual(source.read_bytes(), original_source)
+
     def test_git_delta_includes_ignored_canonical_sources(self):
         (self.root / ".gitignore").write_text(
             "projects/*/DISCOVERED.json\nprojects/opaque/\n.kb-data/\n",
@@ -3691,7 +3823,7 @@ class KnowledgeBaseCLITests(unittest.TestCase):
                     "SELECT value FROM kb_meta "
                     "WHERE key='lifecycle_projection_version'"
                 ).fetchone()[0],
-                "1",
+                load_kb_module().LIFECYCLE_PROJECTION_VERSION,
             )
             self.assertEqual(
                 database.execute(

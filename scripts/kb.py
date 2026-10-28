@@ -37,8 +37,9 @@ EXIT_UNHEALTHY = 5
 EXIT_BUSY = 6
 
 SCHEMA_VERSION = "1"
-INDEX_PROJECTION_VERSION = "6"
-HOT_LOCATOR_VERSION = "2"
+INDEX_PROJECTION_VERSION = "7"
+LIFECYCLE_PROJECTION_VERSION = "2"
+HOT_LOCATOR_VERSION = "3"
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_DIRS = ("profile", "projects", "resources", "playbooks")
 IGNORED_PARTS = {
@@ -951,7 +952,7 @@ def select_lifecycle_events(
                 continue
         else:
             continue
-        if not subject or not target or subject == target:
+        if not subject or not target or (event["kind"] == "supersession" and subject == target):
             continue
         previous = selected.get(subject)
         if (
@@ -1027,7 +1028,7 @@ def lifecycle_maps_from_database(
     projection = connection.execute(
         "SELECT value FROM kb_meta WHERE key='lifecycle_projection_version'"
     ).fetchone()
-    if projection is None or clean_scalar(projection[0]) != "1":
+    if projection is None or clean_scalar(projection[0]) != LIFECYCLE_PROJECTION_VERSION:
         raise LookupError("lifecycle projection is not initialized")
     direct_edges = {
         clean_scalar(row["old_id"]): clean_scalar(row["new_id"])
@@ -1130,9 +1131,11 @@ def annotate_lifecycle(
             item["effective_status"] = "superseded"
         else:
             item["effective_status"] = resolution or item.get("status", "active")
-        if (item.get("fact_key") and not replacement and resolution != "rejected"
+        if (item.get("fact_key") and item.get("kind") not in LIFECYCLE_KINDS
+                and not replacement and resolution != "rejected"
                 and item.get("effective_status") not in ("expired", "not-yet-effective", "invalid-time", "source-unavailable")
-                and LIFECYCLE_STATUS_RANKS.get(clean_scalar(item.get("status")), 1) == 0):
+                and (resolution == "accepted"
+                     or LIFECYCLE_STATUS_RANKS.get(clean_scalar(item.get("status")), 1) == 0)):
             groups.setdefault((clean_scalar(item.get("scope")), clean_scalar(item["fact_key"])), []).append(item)
     for group in groups.values():
         # A shared fact_key is an explicit identity assertion, not inferred
@@ -2408,6 +2411,7 @@ def index_projection_ready(connection: sqlite3.Connection) -> Tuple[bool, str]:
             SELECT key, value FROM kb_meta
             WHERE key IN (
                 'index_projection_version',
+                'lifecycle_projection_version',
                 'canonical_max_rowid',
                 'history_max_rowid',
                 'canonical_document_count',
@@ -2418,6 +2422,8 @@ def index_projection_ready(connection: sqlite3.Connection) -> Tuple[bool, str]:
     }
     if values.get("index_projection_version") != INDEX_PROJECTION_VERSION:
         return False, "projection-version"
+    if values.get("lifecycle_projection_version") != LIFECYCLE_PROJECTION_VERSION:
+        return False, "lifecycle-projection-version"
     try:
         expected_canonical = int(values["canonical_max_rowid"])
         expected_history = int(values["history_max_rowid"])
@@ -3239,6 +3245,7 @@ def locator_replace_source(
                 event["status"],
                 event["source_device_id"],
                 event["bundle_id"],
+                clean_scalar(retrieval_metadata(event).get("fact_key")),
             )
         )
         lifecycle_subject = ""
@@ -3744,6 +3751,8 @@ def search_hot_locator_events(
         parts = [part.casefold() for part in re.findall(r"\S+", query) if part]
         long_parts = [part for part in parts if len(part) >= 3]
         short_parts = [part for part in parts if len(part) < 3]
+        literal_short_parts = [part for part in short_parts if not any(char.isalnum() for char in part)]
+        short_parts = [part for part in short_parts if part not in literal_short_parts]
         conditions: List[str] = []
         parameters: List[Any] = []
         text_conditions: List[str] = []
@@ -3768,6 +3777,11 @@ def search_hot_locator_events(
                 """
             )
             text_parameters.append(locator_fts_expression(short_parts))
+        # unicode61 drops punctuation-only tokens. Preserve literal one/two
+        # character queries without turning percent/underscore into wildcards.
+        for part in literal_short_parts:
+            text_conditions.append("instr(searchable, ?) > 0")
+            text_parameters.append(part)
         query_hashes = locator_term_hashes(query)
         sensitive_keys = set()
         if query_hashes:
@@ -4044,9 +4058,10 @@ def rebuild_index(root: Path) -> Dict[str, Any]:
             connection.execute(
                 """
                 INSERT INTO kb_meta(key, value)
-                VALUES ('lifecycle_projection_version', '1')
+                VALUES ('lifecycle_projection_version', ?)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                """
+                """,
+                (LIFECYCLE_PROJECTION_VERSION,),
             )
             record_index_projection_meta(
                 connection,
@@ -4445,6 +4460,84 @@ def require_writable_schema(root: Path) -> None:
             raise KBError("unsupported knowledge schema for writes: %s" % version)
 
 
+def capture_projection_report(
+    root: Path, event: Dict[str, Any], reference: str, *, duplicate: bool,
+    publication_error: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Report a saved immutable capture separately from repairable projections."""
+    event_id = event["id"]
+    base = Path(reference.partition("#")[0])
+    path = base if base.is_absolute() else root / base
+    relative = path.relative_to(root).as_posix()
+    _, separator, selector = reference.partition("#")
+    resource_reference = relative + ("#" + selector if separator else "")
+    report: Dict[str, Any] = {
+        "ok": True, "saved": True, "readback": False, "duplicate": duplicate,
+        "id": event_id, "created_at": event["created_at"],
+        "source_device_id": event["source_device_id"], "ledger": relative,
+        "candidate": "inbox/candidates/%s.json" % event_id
+        if (root / "inbox/candidates" / (event_id + ".json")).is_file() else None,
+        "resource": None, "indexed": None, "index_status": "pending",
+        "recovery_required": False,
+    }
+    failures = []
+    if publication_error:
+        failures.append({"stage": "publication-durability", "error_type": publication_error})
+    try:
+        saved = load_event_reference(reference, root, event_id, event_fingerprint(event))
+        if saved is None:
+            raise KBError("saved capture is unavailable for readback")
+        report["readback"] = True
+    except Exception as error:
+        failures.append({"stage": "readback", "error_type": type(error).__name__})
+
+    def confirm_durability() -> None:
+        with path.open("r+b") as handle:
+            os.fsync(handle.fileno())
+        fsync_directory(path.parent)
+
+    def project_index() -> Optional[Dict[str, Any]]:
+        if not cold_data_available(root):
+            report["index_status"] = "pending-cold-data-unavailable"
+            return None
+        try:
+            indexed = update_index(root)
+        except (KBError, OSError, sqlite3.Error):
+            if cold_data_available(root):
+                raise
+            report["index_status"] = "pending-cold-data-unavailable"
+            return None
+        report["index_status"] = "current"
+        return indexed
+
+    if report["readback"]:
+        actions = ([("ledger-durability", confirm_durability)] if duplicate else []) + [
+            ("hot-locator", lambda: hot_locator_record_source(root, path)),
+            ("resource", lambda: materialize_resource(root, saved, resource_reference)),
+            ("index", project_index),
+        ]
+        for stage, action in actions:
+            try:
+                value = action()
+                if stage == "resource":
+                    report["resource"] = value.relative_to(root).as_posix() if value else None
+                elif stage == "index" and value:
+                    report["indexed"] = value["history_events"]
+            except Exception as error:
+                # Failure text can contain exact values; only report its type.
+                failures.append({"stage": stage, "error_type": type(error).__name__})
+                if stage == "index":
+                    report["index_status"] = "pending-refresh-failed"
+    if failures:
+        report.update(ok=False, recovery_required=True, recovery={
+            "failures": failures,
+            "action": "retry the identical capture with --id %s to repair projections; do not create another fact" % event_id,
+        })
+    elif duplicate:
+        report["message"] = "identical immutable event already exists; projections verified"
+    return report
+
+
 def capture(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
     require_writable_schema(root)
     created_at = iso_now()
@@ -4507,34 +4600,8 @@ def capture(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
         fingerprint = capture_fingerprint(event)
         if all(capture_fingerprint(item) == fingerprint for item in existing):
             original = existing[0]
-            materialized = materialize_resource(
-                root,
-                original,
-                clean_scalar(original.get("ledger_ref")),
-            )
-            index_status = (
-                "unchanged"
-                if cold_data_available(root)
-                else "pending-cold-data-unavailable"
-            )
-            return {
-                "ok": True,
-                "id": event_id,
-                "duplicate": True,
-                "source_device_id": source_device_id,
-                "message": "identical immutable event already exists",
-                "index_status": index_status,
-                "candidate": (
-                    "inbox/candidates/%s.json" % event_id
-                    if (root / "inbox" / "candidates" / (event_id + ".json")).is_file()
-                    else None
-                ),
-                "resource": (
-                    materialized.relative_to(root).as_posix()
-                    if materialized is not None
-                    else None
-                ),
-            }
+            return capture_projection_report(root, original,
+                clean_scalar(original.get("ledger_ref")), duplicate=True)
         raise ConflictError("event id already exists with different content: %s" % event_id)
 
     ledger_path = ledger_path_for_event(root, event)
@@ -4560,48 +4627,17 @@ def capture(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
         atomic_json_create(candidate_path, candidate)
     try:
         atomic_json_create(ledger_path, event)
-    except Exception:
-        # A review candidate is intentionally retained as recoverable evidence.
-        raise
-    # Keep the cold-independent ID/FTS projection current before reporting
-    # success.  If this process dies between the ledger write and this step,
-    # the next Git delta (or the candidate's direct ledger_path) repairs it.
-    hot_locator_record_source(root, ledger_path)
-    materialized = materialize_resource(
-        root, event, ledger_path.relative_to(root).as_posix()
-    )
-    index_report: Optional[Dict[str, Any]] = None
-    index_status = "pending-cold-data-unavailable"
-    if cold_data_available(root):
-        try:
-            index_report = update_index(root)
-            index_status = "current"
-        except (KBError, OSError, sqlite3.Error):
-            # A disk can be unplugged after the hot files have been atomically
-            # committed.  Preserve the successful capture and defer only the
-            # disposable index; do not hide unrelated index failures while the
-            # cold layer is still reachable.
-            if cold_data_available(root):
-                raise
-    return {
-        "ok": True,
-        "id": event_id,
-        "created_at": created_at,
-        "source_device_id": source_device_id,
-        "ledger": ledger_path.relative_to(root).as_posix(),
-        "candidate": (
-            candidate_path.relative_to(root).as_posix()
-            if candidate_path is not None
-            else None
-        ),
-        "resource": (
-            materialized.relative_to(root).as_posix()
-            if materialized is not None
-            else None
-        ),
-        "indexed": index_report["history_events"] if index_report else None,
-        "index_status": index_status,
-    }
+    except Exception as error:
+        # Publication can fail after linking a complete file (e.g. directory
+        # fsync). Verify that exact record before acknowledging a partial save.
+        if not ledger_path.exists():
+            raise
+        saved = load_event_reference(str(ledger_path), root, event_id, event_fingerprint(event))
+        if saved is None:
+            raise
+        return capture_projection_report(root, saved, str(ledger_path), duplicate=False,
+                                         publication_error=type(error).__name__)
+    return capture_projection_report(root, event, str(ledger_path), duplicate=False)
 
 
 def ledger_path_for_event(root: Path, event: Dict[str, Any]) -> Path:
@@ -4931,6 +4967,12 @@ def resolve_candidate(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
 
 def query_terms(query: str) -> List[str]:
     return re.findall(r"\S+", query.strip())
+
+
+def literal_like_pattern(term: str) -> str:
+    """Match a literal term, including SQL LIKE's wildcard and escape bytes."""
+    escaped = term.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return "%" + escaped + "%"
 
 
 def short_query_terms(query: str) -> List[str]:
@@ -5347,11 +5389,11 @@ def search_hot_layer(
     }
 
 
-def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
+def search_once(root: Path, args: argparse.Namespace, *, force_hot: bool = False) -> Dict[str, Any]:
     query = args.query.strip()
     if not query:
         raise KBError("search query cannot be empty")
-    if not cold_data_available(root):
+    if force_hot or not cold_data_available(root):
         return search_hot_layer(root, args, query)
 
     def index_unavailable_fallback(reason: str) -> Dict[str, Any]:
@@ -5402,11 +5444,15 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
     # them as additional LIKE predicates so 中文双字词 still constrain indexed
     # results exactly like they constrain the hot-only path.
     shorts = short_query_terms(query)
-    short_likes = ["%%%s%%" % term.lower() for term in shorts]
+    short_likes = [literal_like_pattern(term) for term in shorts]
     try:
+        # Select exact titles before the bounded BM25 candidate window. The
+        # later lifecycle-aware ranking cannot recover a title already omitted
+        # here, and casefold matches the title comparison in direct_rank.
+        connection.create_function("casefold", 1, str.casefold)
         if match:
-            document_short_sql = "".join(" AND %s LIKE ?" % document_text for _ in short_likes)
-            event_short_sql = "".join(" AND %s LIKE ?" % event_text for _ in short_likes)
+            document_short_sql = "".join(" AND %s LIKE ? ESCAPE '\\'" % document_text for _ in short_likes)
+            event_short_sql = "".join(" AND %s LIKE ? ESCAPE '\\'" % event_text for _ in short_likes)
             documents = connection.execute(
                 """
                 SELECT d.*, snippet(canonical_fts, 5, '[', ']', '…', 22) AS snippet,
@@ -5414,9 +5460,10 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
                 FROM canonical_fts
                 JOIN canonical_documents d ON d.rowid = canonical_fts.rowid
                 WHERE canonical_fts MATCH ?%s%s
-                ORDER BY rank LIMIT ?
+                ORDER BY CASE WHEN casefold(d.title) = ? THEN 0 ELSE 1 END,
+                         rank LIMIT ?
                 """ % (document_short_sql, document_where),
-                [match] + short_likes + parameters + [fetch_limit],
+                [match] + short_likes + parameters + [query.casefold(), fetch_limit],
             ).fetchall()
             events = connection.execute(
                 """
@@ -5431,16 +5478,17 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
             ).fetchall()
         else:
             terms = query_terms(query) or [query]
-            likes = ["%%%s%%" % term.lower() for term in terms]
+            likes = [literal_like_pattern(term) for term in terms]
             documents = connection.execute(
                 """
                 SELECT d.*, substr(canonical_fts.content, 1, 240) AS snippet, 0.0 AS rank
                 FROM canonical_fts
                 JOIN canonical_documents d ON d.rowid = canonical_fts.rowid
                 WHERE %s%s
+                ORDER BY CASE WHEN casefold(d.title) = ? THEN 0 ELSE 1 END
                 LIMIT ?
-                """ % (" AND ".join("%s LIKE ?" % document_text for _ in likes), document_where),
-                likes + parameters + [fetch_limit],
+                """ % (" AND ".join("%s LIKE ? ESCAPE '\\'" % document_text for _ in likes), document_where),
+                likes + parameters + [query.casefold(), fetch_limit],
             ).fetchall()
             events = connection.execute(
                 """
@@ -5449,7 +5497,7 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
                 JOIN history_events e ON e.rowid = history_fts.rowid
                 WHERE %s%s
                 LIMIT ?
-                """ % (" AND ".join("%s LIKE ?" % event_text for _ in likes), event_where),
+                """ % (" AND ".join("%s LIKE ? ESCAPE '\\'" % event_text for _ in likes), event_where),
                 likes + parameters + [fetch_limit],
             ).fetchall()
         superseded_by, resolutions = lifecycle_maps_for_read(root, connection)
@@ -5487,7 +5535,8 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
             "authority": document["authority"],
             "status": document["status"],
             "credential": bool(row["is_credential"]),
-            "snippet": row["snippet"],
+            "snippet": (row["snippet"] if match else
+                        focused_excerpt(document["safe_content"], query, 480)[0]),
             "rank": row["rank"],
         }
         if row["is_credential"]:
@@ -5553,6 +5602,11 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
                 item["value"] = event["value"]
         results.append(item)
     results.extend(search_source_history(root, args, match))
+    # Match the public search ranking before this function's own result limit;
+    # reranking only after returning would lose exact-title candidates again.
+    for item in results:
+        item["rank"] = direct_rank(query, clean_scalar(item.get("title")),
+                                   clean_scalar(item.get("statement", item.get("snippet"))))
     annotate_lifecycle(results, superseded_by, resolutions)
     settings = retrieval_settings(root)
     results.sort(
@@ -5580,7 +5634,7 @@ def search_once(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
-def search(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
+def search(root: Path, args: argparse.Namespace, *, force_hot: bool = False) -> Dict[str, Any]:
     """Read-only search with bounded, configured aliases and explicit coverage."""
     import copy
     settings_path = root / "config" / "kb.json"
@@ -5613,13 +5667,18 @@ def search(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
     reports = []
     for query in queries:
         local_args.query = query
-        reports.append(search_once(root, local_args))
+        reports.append(search_once(root, local_args, force_hot=force_hot))
     identities = {(item.get("scope"), item.get("fact_key"))
                   for result in reports for item in result["results"] if item.get("fact_key")}
     for scope, key in sorted(identities)[:20]:
         local_args.query, local_args.scope = key, scope
         local_args.limit = 1000
-        reports.append(search_once(root, local_args))
+        siblings = search_once(root, local_args, force_hot=force_hot)
+        # Lexical lookup discovers candidates, not identity. A statement that
+        # merely mentions a key must not become a sibling of that fact.
+        siblings["results"] = [item for item in siblings["results"]
+                               if item.get("scope") == scope and item.get("fact_key") == key]
+        reports.append(siblings)
     report = reports[0]
     combined = [item for result in reports for item in result["results"]]
     for item in combined:
@@ -6611,7 +6670,7 @@ def dispatch(root: Path, args: argparse.Namespace) -> Dict[str, Any]:
             args.limit = retrieval_settings(root)["default_limit"]
         if args.limit < 1 or args.limit > 1000:
             raise KBError("--limit must be between 1 and 1000")
-        return search(root, args)
+        return search(root, args, force_hot=getattr(args, "force_hot", False))
     if args.command == "get-history":
         return get_history(root, args)
     if args.command == "get-resource":
@@ -6657,7 +6716,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         payload = run(args)
         emit(payload, bool(getattr(args, "json", False)))
-        return EXIT_OK
+        return EXIT_ERROR if payload.get("ok") is False else EXIT_OK
     except UnhealthyError as error:
         emit(error.report, bool(getattr(args, "json", False)))
         return error.exit_code

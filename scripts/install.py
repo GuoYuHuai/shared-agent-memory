@@ -13,7 +13,7 @@ import uuid
 import workspace_lock
 import device_identity
 
-VERSION = '0.2.0-experimental'
+VERSION = '0.2.1-experimental'
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 BEGIN = '<!-- AI-KNOWLEDGE:PUBLIC:BEGIN -->'
 END = '<!-- AI-KNOWLEDGE:PUBLIC:END -->'

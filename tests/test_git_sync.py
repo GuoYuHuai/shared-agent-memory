@@ -36,6 +36,10 @@ def command(cwd, *args):
 
 class GitSyncTests(unittest.TestCase):
     def write_policy(self, repo: Path) -> None:
+        # All fixture knowledge repositories use the same versioned identity.
+        manifest = repo / "MANIFEST.json"
+        manifest.write_text(json.dumps({"schema_version": "1", "knowledge_base_id": "fictional-knowledge"}))
+        command(repo, "git", "add", "MANIFEST.json")
         path = repo / "config" / "kb.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
@@ -293,6 +297,111 @@ class GitSyncTests(unittest.TestCase):
             self.assertTrue((second / "one.txt").is_file())
             command(first, "git", "pull", "--rebase", "origin", "main")
             self.assertTrue((first / "two.txt").is_file())
+
+    def test_incompatible_peer_is_rejected_without_changing_either_copy(self):
+        variants = {
+            "future-schema": ({"schema_version": "2", "knowledge_base_id": "fictional-knowledge"}, "remote-knowledge-schema-unsupported"),
+            "different-library": ({"schema_version": "1", "knowledge_base_id": "another-library"}, "knowledge-base-mismatch"),
+            "missing-identity": ({"schema_version": "1"}, "remote-knowledge-identity-missing"),
+            "invalid-json": ("{", "remote-knowledge-manifest-invalid"),
+            "oversized": (" " * 65537, "remote-knowledge-manifest-invalid"),
+            "missing": (None, "remote-knowledge-manifest-missing-or-unsafe"),
+            "symlink": (None, "remote-knowledge-manifest-missing-or-unsafe"),
+        }
+        for name, (payload, expected) in variants.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                module = load_module()
+                root = Path(directory)
+                remote, local = self.pending_first_push(root)
+                command(local, "git", "push", "origin", "main")
+                peer = self.initialize_clone(root, remote, "peer")
+                manifest = peer / "MANIFEST.json"
+                if name in {"missing", "symlink"}:
+                    manifest.unlink()
+                    if name == "symlink":
+                        manifest.symlink_to("local-fact.txt")
+                else:
+                    manifest.write_text(json.dumps(payload) if isinstance(payload, dict) else payload)
+                command(peer, "git", "add", ".")
+                command(peer, "git", "commit", "-m", "peer format change")
+                command(peer, "git", "push", "origin", "main")
+                original = command(local, "git", "rev-parse", "HEAD")
+                peer_head = command(peer, "git", "rev-parse", "HEAD")
+                original_manifest = (local / "MANIFEST.json").read_bytes()
+                with self.allow_fixture_transport(module), mock.patch.object(module, "rebase_onto", wraps=module.rebase_onto) as rebase:
+                    result = module.sync("origin", pull=True, push=True, root=local)
+                self.assertEqual(result["error"], expected, result)
+                self.assertFalse(result["retryable"])
+                self.assertEqual(result["phase"], "compatibility")
+                rebase.assert_not_called()
+                self.assertEqual(command(local, "git", "rev-parse", "HEAD"), original)
+                self.assertEqual((local / "MANIFEST.json").read_bytes(), original_manifest)
+                self.assertEqual(command(local, "git", "status", "--porcelain"), "")
+                self.assertEqual(command(root, "git", "--git-dir", str(remote), "rev-parse", "main"), peer_head)
+
+    def test_tool_version_difference_does_not_block_compatible_data(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            command(local, "git", "push", "origin", "main")
+            peer = self.initialize_clone(root, remote, "peer")
+            manifest = peer / "MANIFEST.json"
+            payload = json.loads(manifest.read_text())
+            payload["tool_version"] = "fictional-later-tool"
+            manifest.write_text(json.dumps(payload))
+            command(peer, "git", "add", ".")
+            command(peer, "git", "commit", "-m", "compatible tool upgrade")
+            command(peer, "git", "push", "origin", "main")
+            with self.allow_fixture_transport(module):
+                result = module.sync("origin", pull=True, push=False, root=local)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(result["pulled"])
+            self.assertTrue(result["compatibility"]["ok"])
+            self.assertEqual(command(local, "git", "rev-parse", "HEAD"), command(peer, "git", "rev-parse", "HEAD"))
+
+    def test_first_push_rejects_unsupported_local_data(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            (local / "MANIFEST.json").write_text(json.dumps({"schema_version": "future", "knowledge_base_id": "fictional-knowledge"}))
+            command(local, "git", "add", ".")
+            command(local, "git", "commit", "-m", "unsupported format")
+            with self.allow_fixture_transport(module):
+                result = module.sync("origin", pull=True, push=True, root=local)
+            self.assertEqual(result["error"], "local-knowledge-schema-unsupported")
+            self.assertEqual(command(root, "git", "--git-dir", str(remote), "for-each-ref"), "")
+
+    def test_schema_change_during_push_race_is_rejected_before_rebase(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            remote, local = self.pending_first_push(root)
+            command(local, "git", "push", "origin", "main")
+            peer = self.initialize_clone(root, remote, "peer")
+            (peer / "MANIFEST.json").write_text(json.dumps({"schema_version": "future", "knowledge_base_id": "fictional-knowledge"}))
+            command(peer, "git", "add", ".")
+            command(peer, "git", "commit", "-m", "peer format upgrade")
+            (local / "new.txt").write_text("fictional later fact")
+            command(local, "git", "add", ".")
+            command(local, "git", "commit", "-m", "local new fact")
+            original = command(local, "git", "rev-parse", "HEAD")
+            actual_git = module.git
+            pushes = []
+            def race(arguments, **kwargs):
+                if arguments[0] == "push":
+                    pushes.append(arguments)
+                    command(peer, "git", "push", "origin", "main")
+                return actual_git(arguments, **kwargs)
+            with self.allow_fixture_transport(module), mock.patch.object(module, "git", side_effect=race), mock.patch.object(module, "rebase_onto", wraps=module.rebase_onto) as rebase:
+                result = module.sync("origin", pull=True, push=True, root=local)
+            self.assertEqual(result["error"], "remote-knowledge-schema-unsupported", result)
+            self.assertEqual(result["phase"], "push-race-compatibility")
+            self.assertEqual(len(pushes), 1)
+            rebase.assert_not_called()
+            self.assertEqual(command(local, "git", "rev-parse", "HEAD"), original)
+            self.assertEqual(command(root, "git", "--git-dir", str(remote), "rev-parse", "main"), command(peer, "git", "rev-parse", "HEAD"))
 
     def test_conflict_is_aborted_recorded_and_not_retried_for_unchanged_heads(self):
         module = load_module()

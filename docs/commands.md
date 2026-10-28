@@ -15,6 +15,12 @@ The correction keeps the earlier record and its source, but removes it from
 current answers. Repeating the same correction is safe. Record IDs are printed
 after saving; use the current record's ID for a later correction.
 
+If saving succeeds but an index update fails, the result still shows the saved
+ID and a recovery action. Keep that ID: retry the same `remember` command with
+`--id ID` after the storage issue is resolved. This repairs the index without
+creating another fact. In JSON output, check `saved` and `readback` separately
+from `ok`; a follow-up failure returns a nonzero exit code.
+
 Use `--authority agent-inferred` when recording an unconfirmed inference. It
 remains a candidate, not a current fact. Use `--value-file FILE` to preserve an
 exact configuration value, including line endings, without putting it in the

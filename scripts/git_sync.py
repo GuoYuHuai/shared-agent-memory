@@ -592,6 +592,47 @@ def failure(
     return result
 
 
+def committed_knowledge_manifest(root: Path, revision: str, side: str) -> Dict[str, Any]:
+    """Inspect a fetched commit before it can replace the working knowledge.
+
+    Read a bounded regular Git blob; do not follow a symlink or import code from
+    the peer. Tool releases may differ while sharing the same data protocol.
+    """
+    entry = value(["ls-tree", revision, "--", "MANIFEST.json"], root=root)
+    if not re.fullmatch(r"100(?:644|755) blob [0-9a-f]{40,64}\tMANIFEST\.json", entry):
+        raise SyncError(side + "-knowledge-manifest-missing-or-unsafe")
+    object_name = revision + ":MANIFEST.json"
+    size = value(["cat-file", "-s", object_name], root=root)
+    if not size.isdigit() or not 0 < int(size) <= 65536:
+        raise SyncError(side + "-knowledge-manifest-invalid")
+    try:
+        result = git(["show", object_name], root=root)
+        manifest = json.loads(result.stdout) if result.returncode == 0 else None
+    except (ValueError, UnicodeError):
+        manifest = None
+    if not isinstance(manifest, dict):
+        raise SyncError(side + "-knowledge-manifest-invalid")
+    if manifest.get("schema_version") != "1":
+        raise SyncError(side + "-knowledge-schema-unsupported")
+    identity = manifest.get("knowledge_base_id")
+    if not isinstance(identity, str) or not identity.strip():
+        raise SyncError(side + "-knowledge-identity-missing")
+    return manifest
+
+
+def knowledge_compatibility(root: Path, local_head: str, remote_head: Optional[str] = None) -> Dict[str, Any]:
+    try:
+        local = committed_knowledge_manifest(root, local_head, "local")
+        if remote_head:
+            peer = committed_knowledge_manifest(root, remote_head, "remote")
+            if local["knowledge_base_id"] != peer["knowledge_base_id"]:
+                raise SyncError("knowledge-base-mismatch")
+    except SyncError as error:
+        return {"ok": False, "error": str(error),
+                "recovery": "Keep both copies. Check the selected knowledge repository and install a compatible tool version before retrying; do not rewrite its schema or identity."}
+    return {"ok": True, "schema_version": "1", "knowledge_base_id": local["knowledge_base_id"]}
+
+
 def sync(
     remote: str, pull: bool, push: bool, root: Optional[Path] = None
 ) -> Dict[str, object]:
@@ -635,6 +676,14 @@ def sync(
             return failure("remote-refs-unavailable", branch, retryable=True)
         if refs.stdout.strip():
             return failure("remote-not-empty", branch, retryable=False)
+    local_head = value(["rev-parse", "HEAD"], root=work_root)
+    remote_head = value(["rev-parse", "%s/%s" % (remote, branch)], root=work_root) if remote_has_branch else None
+    if remote_head and not value(["merge-base", local_head, remote_head], root=work_root):
+        return failure("unrelated-histories", branch, retryable=False)
+    compatibility = knowledge_compatibility(work_root, local_head, remote_head)
+    if not compatibility["ok"]:
+        return failure(compatibility["error"], branch, retryable=False,
+                       phase="compatibility", recovery=compatibility["recovery"])
     pulled = False
     pushed = False
     remote_branch_created = False
@@ -762,6 +811,10 @@ def sync(
             if not merge_base:
                 return failure("unrelated-histories", branch, retryable=False,
                                phase="push-race")
+            compatibility = knowledge_compatibility(work_root, local_head, remote_head)
+            if not compatibility["ok"]:
+                return failure(compatibility["error"], branch, retryable=False,
+                               phase="push-race-compatibility", recovery=compatibility["recovery"])
             rebased = rebase_onto(remote, branch, work_root)
             if not rebased.get("ok"):
                 cleanup = dict(rebased.get("cleanup") or {})
@@ -818,6 +871,7 @@ def sync(
         "pulled": pulled,
         "pushed": pushed,
         "remote_branch_created": remote_branch_created,
+        "compatibility": compatibility,
     }
 
 

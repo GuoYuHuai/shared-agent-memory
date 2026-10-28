@@ -154,7 +154,16 @@ def parser():
 def human(report):
     if report.get('ok') is False:
         detail = report.get('reason') or report.get('error') or (report.get('sync') or {}).get('error') or (report.get('sync') or {}).get('status') or (report.get('index') or {}).get('status')
-        return '\n'.join(str(v) for v in ('The record was saved; a follow-up step needs attention.' if report.get('saved') else 'Could not complete the operation.', detail, report.get('recovery')) if v)
+        recovery = report.get('recovery')
+        if isinstance(recovery, dict):
+            recovery = recovery.get('action') or recovery
+        if report.get('saved'):
+            record_id = report.get('id') or report.get('new_id') or 'see the saved record'
+            opening = ('Saved locally: ' if report.get('readback') else 'Local write completed: ') + str(record_id)
+            opening += '\nVerification or a follow-up step needs attention.'
+        else:
+            opening = 'Could not complete the operation.'
+        return '\n'.join(str(v) for v in (opening, detail, recovery) if v)
     action = report.get('action')
     if action in ('remember', 'correct'):
         return 'Saved locally: ' + str(report.get('id') or report.get('new_id')) + '\n' + str(report.get('message') or 'Use sync to share it when a private remote is connected.')

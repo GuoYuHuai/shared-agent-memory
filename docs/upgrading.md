@@ -63,6 +63,10 @@ the same checks. A future schema migration requires a locked backup and an expli
 restore/compatibility procedure; merely switching code is not a data rollback. Do not
 point an older writer at a newer schema.
 
+Version 0.2.1 keeps data schema 1. Its next foreground lookup rebuilds outdated
+search and lifecycle indexes automatically from the original files. These are
+disposable caches; no knowledge migration or history import is required.
+
 ## Stop scheduling or uninstall
 
 Disconnect instruction files with `ak.py --root ROOT disconnect --instructions FILE`

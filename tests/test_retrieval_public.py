@@ -1,6 +1,7 @@
 import argparse
 import importlib.util
 import json
+import sqlite3
 import shutil
 import sys
 import subprocess
@@ -13,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import kb
 import retrieve
+import workspace_lock
 
 
 class PublicRetrievalTests(unittest.TestCase):
@@ -169,11 +171,134 @@ class PublicRetrievalTests(unittest.TestCase):
     def test_shared_fact_key_reveals_conflicting_sibling_not_matching_query(self):
         self.event('east', 'zone is east', fact_key='deployment-region')
         self.event('west', 'zone is west', fact_key='deployment-region')
-        kb.init_knowledge_base(self.root)
+        self.event('unrelated', 'deployment-region maintenance note', fact_key='different-property')
+        self.event('other-project', 'deployment-region elsewhere', fact_key='deployment-region', scope='project:beacon')
+        for indexed in (False, True):
+            with self.subTest(indexed=indexed):
+                if indexed:
+                    kb.init_knowledge_base(self.root)
+                report = self.search('east')
+                self.assertEqual({r['id'] for r in report['results']}, {'east','west'})
+                self.assertEqual(report['current_count'], 0)
+                self.assertTrue(all(r['conflicts_with'] for r in report['results']))
+
+    def test_hot_ledger_short_punctuation_queries_are_literal(self):
+        for marker, event_id in (('%', 'percent'), ('_', 'underscore'), ('\\', 'slash')):
+            self.event(event_id, 'Atlas literal ' + marker + ' marker')
+        self.event('plain', 'Atlas plain text marker')
+        self.event('other-percent', 'Other project uses %', scope='project:beacon')
+        for marker, event_id in (('%', 'percent'), ('_', 'underscore'), ('\\', 'slash')):
+            with self.subTest(marker=marker):
+                report = self.search(marker)
+                self.assertEqual([row['id'] for row in report['results']], [event_id])
+        self.assertEqual(self.search('@')['count'], 0)
+        self.assertEqual([row['id'] for row in self.search('%', scope='project:beacon')['results']], ['other-percent'])
+        self.assertFalse((self.root / '.kb-data').exists())
+
+    def test_old_hot_locator_rebuilds_to_discover_fact_key_siblings(self):
+        self.event('east', 'zone is east', fact_key='deployment-region')
+        self.event('west', 'zone is west', fact_key='deployment-region')
+        self.search('east')
+        connection = sqlite3.connect(kb.hot_locator_path(self.root))
+        try:
+            connection.execute("UPDATE locator_meta SET value='2' WHERE key='version'")
+            connection.execute("UPDATE locator_events SET searchable=replace(searchable, 'deployment-region', '')")
+            connection.execute("UPDATE locator_event_fts SET searchable=replace(searchable, 'deployment-region', '')")
+            connection.commit()
+        finally:
+            connection.close()
         report = self.search('east')
-        self.assertEqual({r['id'] for r in report['results']}, {'east','west'})
+        self.assertEqual({row['id'] for row in report['results']}, {'east', 'west'})
         self.assertEqual(report['current_count'], 0)
-        self.assertTrue(all(r['conflicts_with'] for r in report['results']))
+        self.assertFalse((self.root / '.kb-data').exists())
+
+    def test_busy_refresh_preserves_aliases_scope_siblings_and_current_count(self):
+        self.event('east', '发布计划 east', fact_key='deployment-region')
+        self.event('west', '发布计划 west', fact_key='deployment-region')
+        self.event('other', '发布计划 east', fact_key='deployment-region', scope='project:beacon')
+        kb.init_knowledge_base(self.root)
+        with workspace_lock.acquire(self.root):
+            report = retrieve.retrieve(self.root, 'release east', scope='星图', offline=True)
+        self.assertEqual({row['id'] for row in report['results']}, {'east', 'west'})
+        self.assertEqual(report['current_count'], 0)
+        self.assertTrue(all(not row['current_eligible'] for row in report['results']))
+        self.assertEqual(report['conclusion'], 'local-index-incomplete')
+        self.assertTrue(report['index_refresh_failed'])
+        self.assertGreater(report['alias_queries_attempted'], 1)
+
+    def test_read_only_projection_fallback_keeps_exact_values_and_candidate_status(self):
+        self.event('exact', 'Atlas exact configuration', value='first\r\nsecond\r\n')
+        self.event('guess', 'Atlas inferred configuration', status='candidate', authority='agent-inference')
+        kb.init_knowledge_base(self.root)
+        with mock.patch.object(kb, 'update_index', side_effect=sqlite3.OperationalError('attempt to write a readonly database')):
+            report = retrieve.retrieve(self.root, 'Atlas', scope='project:atlas', include_values=True, offline=True)
+        self.assertEqual(report['current_count'], 1)
+        self.assertEqual(next(row for row in report['results'] if row['id']=='exact')['value'], 'first\r\nsecond\r\n')
+        self.assertFalse(next(row for row in report['results'] if row['id']=='guess')['current_eligible'])
+        self.assertEqual(report['freshness']['index_status'], 'refresh-failed:OperationalError')
+
+    def test_busy_empty_result_remains_incomplete_not_verified_absence(self):
+        kb.init_knowledge_base(self.root)
+        with workspace_lock.acquire(self.root):
+            report = retrieve.retrieve(self.root, 'missing fact', offline=True)
+        self.assertEqual(report['count'], 0)
+        self.assertEqual(report['current_count'], 0)
+        self.assertEqual(report['conclusion'], 'local-index-incomplete')
+
+    def test_fallback_keeps_dispatcher_query_limit_validation(self):
+        kb.init_knowledge_base(self.root)
+        with workspace_lock.acquire(self.root):
+            for limit in (0, 1001):
+                with self.subTest(limit=limit), self.assertRaisesRegex(kb.KBError, '--limit must be between'):
+                    retrieve.retrieve(self.root, 'marker', limit=limit, offline=True)
+
+    def test_malformed_source_and_invalid_alias_are_not_hidden_by_fallback(self):
+        kb.init_knowledge_base(self.root)
+        broken = self.root / 'ledger/broken.json'
+        broken.write_text('{bad-json')
+        with self.assertRaises(kb.KBError):
+            retrieve.retrieve(self.root, 'unknown', offline=True)
+        broken.unlink()
+        self.config['retrieval']['scope_aliases']['project:beacon'] = ['星图']
+        self.write_config()
+        with workspace_lock.acquire(self.root), self.assertRaisesRegex(kb.KBError, 'ambiguous scope alias'):
+            retrieve.retrieve(self.root, 'unknown', scope='星图', offline=True)
+
+    def test_invalid_new_source_after_sync_does_not_return_pre_sync_evidence(self):
+        self.event('local', 'marker')
+        kb.init_knowledge_base(self.root)
+        self.config['hot_sync'] = {'expected_repository': 'fiction/example'}
+        self.write_config()
+        def sync(*args, **kwargs):
+            (self.root / 'ledger/broken.json').write_text('{bad-json')
+            return {'ok':True}
+        callback = mock.Mock(side_effect=sync)
+        with self.assertRaises(kb.KBError):
+            retrieve.retrieve(self.root, 'marker', sync_fn=callback)
+        callback.assert_called_once()
+
+    def test_foreground_tracks_canonical_add_edit_move_delete_and_recovers_corrupt_index(self):
+        kb.init_knowledge_base(self.root)
+        path = self.root / 'projects/atlas.json'
+        path.parent.mkdir(exist_ok=True)
+        record = {'id':'canonical-atlas', 'kind':'fact', 'scope':'project:atlas',
+                  'statement':'Atlas project is cyan', 'authority':'user-stated', 'status':'active'}
+        path.write_text(json.dumps(record))
+        self.assertEqual(retrieve.retrieve(self.root, 'cyan', scope='project:atlas', offline=True)['count'], 1)
+        record.update(statement='Atlas project is amber', scope='project:beacon')
+        path.write_text(json.dumps(record))
+        self.assertEqual(retrieve.retrieve(self.root, 'cyan', scope='project:atlas', offline=True)['count'], 0)
+        self.assertEqual(retrieve.retrieve(self.root, 'amber', scope='project:atlas', offline=True)['count'], 0)
+        moved = path.with_name('beacon.json')
+        path.rename(moved)
+        report = retrieve.retrieve(self.root, 'amber', scope='project:beacon', offline=True)
+        self.assertEqual(report['results'][0]['path'], 'projects/beacon.json')
+        (self.root / '.kb-data/knowledge.sqlite').write_bytes(b'not a SQLite database')
+        recovered = retrieve.retrieve(self.root, 'amber', scope='project:beacon', offline=True)
+        self.assertEqual(recovered['current_count'], 1)
+        self.assertTrue(list((self.root / '.kb-data/reports').glob('knowledge-corrupt-*')))
+        moved.unlink()
+        self.assertEqual(retrieve.retrieve(self.root, 'amber', scope='project:beacon', offline=True)['count'], 0)
 
     def test_scope_alias_does_not_include_other_projects(self):
         self.event('atlas', 'release')

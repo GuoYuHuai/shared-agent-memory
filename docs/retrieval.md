@@ -8,6 +8,11 @@ The foreground entry point refreshes the disposable index of the selected knowle
 
 Default installation is lightweight. Larger history collections and their indexes are separate opt-in work scoped by the user. A removable-storage mode or a local directory test alone is not evidence of successful movement between two physical devices.
 
+If the index is busy or cannot be refreshed, foreground retrieval reads the
+available knowledge files with the same aliases, scopes and conflict rules.
+The result reports `local-index-incomplete`; a failed refresh is not proof that
+the requested fact does not exist. Invalid source data remains an explicit error.
+
 ## Current evidence versus historical evidence
 
 Every result includes its ID, scope, source or source location, authority, status, and available timestamps. `effective_status` applies expiry, future validity, explicit disputes, rejection and supersession. `current_eligible` is false for expired, disputed, archived, superseded, rejected, candidate and raw-history results. Historical records remain visible and are never deleted merely because they are no longer current. A result list with only historical or disputed evidence reports `current-value-unconfirmed`.
@@ -16,7 +21,7 @@ Ordering uses effective lifecycle, authority, query relevance, source time, then
 
 Optional additive capture fields are `--source-time`, `--observed-at`, `--confirmed-at`, `--expires-at`, `--valid-from`, and `--fact-key`. Metadata is part of immutable event identity and is retained in resource projections. Reusing an ID with different metadata is a conflict. `MANIFEST.json` with a schema other than supported `1` blocks knowledge writes; reads and exports can still be used to diagnose or migrate deliberately. Older fixtures without a manifest remain readable for legacy compatibility.
 
-Use a stable `fact_key` for assertions that describe the same property in the same scope. When one matching result has a `fact_key`, search also retrieves siblings with that identity (up to 20 identities per query and 1,000 candidates per sibling lookup). Two active IDs for the same key require an explicit supersession; both sources are returned as disputed even if the original query matched only one value. Similar words alone never imply the same fact. Known `conflicts_with` relationships and status `disputed` are also honored. Divergent supersession edges from the same old ID fail with a visible conflict instead of selecting the last timestamp; keep both events and resolve explicitly in a reviewed migration. The experimental client does not yet provide an automatic disputed-edge resolution command.
+Use a stable `fact_key` for assertions that describe the same property in the same scope. When one matching result has a `fact_key`, search also retrieves siblings with that identity (up to 20 identities per query and 1,000 candidates per sibling lookup). Two current IDs for the same key, including accepted candidates, require an explicit supersession; both sources are returned as disputed even if the original query matched only one value. Similar words alone never imply the same fact. Known `conflicts_with` relationships and status `disputed` are also honored. Divergent supersession edges from the same old ID fail with a visible conflict instead of selecting the last timestamp; keep both events and resolve explicitly in a reviewed migration. The experimental client does not yet provide an automatic disputed-edge resolution command.
 
 ## Aliases and bounds
 

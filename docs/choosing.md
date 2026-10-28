@@ -43,3 +43,6 @@ Capabilities and installation requirements change. Consult the projects'
 and [Mem0 quickstart](https://docs.mem0.ai/open-source/python-quickstart) for current
 details. This comparison is based on their public documentation, not a measured
 performance or cost benchmark.
+
+The [reliability notes](reliability.md) describe specific lessons adopted from these
+projects, the bugs reproduced here, and the regression checks added for them.

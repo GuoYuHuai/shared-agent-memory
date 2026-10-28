@@ -61,6 +61,14 @@ python3 scripts/ak.py --root "/path/to/my-knowledge" sync
 In PowerShell, use `py -3 .\scripts\ak.py --root "C:\path\to\my-knowledge" sync`
 with the actual path. No model or scheduler is required.
 
+Sync checks the committed data schema and knowledge-library identity before
+changing the working copy or pushing. An unknown schema, missing manifest or
+different library identity stops the operation and preserves both copies. Check
+that the selected repository is correct and use a compatible tool release;
+do not edit the schema or identity merely to bypass the check. Different tool
+versions can sync when they share a supported data schema. A concurrent remote
+change is checked again before retrying.
+
 Connection checks do not fetch into or rebase the user's working repository.
 Handled write or commit failures restore the previous configuration, installation
 receipt, origin configuration, index and branch position. An uncooperative

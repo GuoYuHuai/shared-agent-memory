@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 experimental candidate — 2026-10-28
+
+- Keep exact-title matches in search results and show matching excerpts for short queries. Treat `%` and `_` as literal search text.
+- Preserve aliases, project scopes and conflict handling when an index is busy or unavailable.
+- Distinguish a saved record from a failed index update; retrying the same ID repairs the index without duplicating the record.
+- Align GitHub ledger reads with local candidate decisions, effective dates and conflict rules.
+- Check knowledge identity and data format before Git synchronization, including concurrent push recovery.
+- Document the upstream design lessons and regression cases in [reliability notes](docs/reliability.md). Installation and lightweight defaults are unchanged.
+
 ## 0.2.0 experimental candidate — 2026-10-28
 
 - Add complete English and Chinese READMEs with language links, a shorter setup guide and an honest comparison of other memory workflows.

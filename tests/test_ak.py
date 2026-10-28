@@ -10,6 +10,7 @@ TOOL = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOL / 'scripts'))
 import kb
 import install
+import ak
 
 
 class EverydayCLI(unittest.TestCase):
@@ -113,6 +114,47 @@ class EverydayCLI(unittest.TestCase):
         self.cli('remember', 'Atlas configuration', '--id', 'config-value', '--source', 'fictional:user', '--value-file', str(value))
         found = self.cli('recall', 'Atlas configuration', '--include-values', '--offline')
         self.assertEqual(found['results'][0]['value'], 'first\r\nsecond\r\n')
+
+    def test_saved_capture_with_readonly_index_is_explicit_and_same_id_repairs(self):
+        self.init()
+        self.cli('remember', 'Atlas initial fact', '--id', 'initial', '--source', 'fictional:user')
+        database = self.root / '.kb-data/knowledge.sqlite'
+        original_mode = database.stat().st_mode
+        database.chmod(0o444)
+        try:
+            if os.access(database, os.W_OK):
+                self.skipTest('host does not enforce this read-only file fixture')
+            args = ('remember', 'Atlas later fact', '--id', 'later', '--source', 'fictional:user')
+            partial = self.cli(*args, ok=False)
+            self.assertTrue(partial['saved'])
+            self.assertTrue(partial['readback'])
+            self.assertEqual(partial['id'], 'later')
+            self.assertEqual(partial['index_status'], 'pending-refresh-failed')
+            self.assertIn('--id later', partial['recovery']['action'])
+            self.assertIn('Saved locally: later', ak.human(partial))
+            self.assertIn('--id later', ak.human(partial))
+            event = self.root / partial['ledger']
+            unchanged = event.read_bytes()
+            repeated = self.cli(*args, ok=False)
+            self.assertTrue(repeated['duplicate'])
+            self.assertEqual(event.read_bytes(), unchanged)
+            found = self.cli('recall', 'later', '--offline')
+            self.assertEqual(found['results'][0]['id'], 'later')
+            self.assertTrue(found['index_refresh_failed'])
+        finally:
+            database.chmod(original_mode)
+            # SQLite may create companions with the fixture's read-only mode.
+            # Restoring storage permissions includes those task-created files.
+            for suffix in ('-wal', '-shm'):
+                companion = Path(str(database) + suffix)
+                if companion.exists():
+                    companion.chmod(original_mode)
+        repaired = self.cli(*args)
+        self.assertTrue(repaired['duplicate'])
+        self.assertTrue(repaired['readback'])
+        self.assertEqual(repaired['index_status'], 'current')
+        self.assertEqual(event.read_bytes(), unchanged)
+        self.assertEqual(len(list((self.root / 'ledger/by-id').glob('*.json'))), 2)
 
     def test_unsupported_schema_is_not_rewritten(self):
         self.init()

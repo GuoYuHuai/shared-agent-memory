@@ -40,10 +40,12 @@ The binding must check permissions/API errors and complete pagination. Do not si
 substitute default-branch reads for unsupported ref reads. Interactive connector credentials
 must not be assumed available to background CLI jobs.
 
-The experimental reference supports ledger events and supersession conflicts. Local
-candidate-resolution projections and advanced alias ranking are not yet fully mirrored
-remotely; inspect resolution events and canonical records before adopting disputed values.
-No claim of complete remote parity or large-library retrieval performance is made.
+The experimental reference supports ledger candidate decisions, effective dates,
+expiry, supersession and explicit conflicts. Shared fixtures compare these lifecycle
+decisions with the local reader. Canonical Markdown and advanced alias ranking remain
+outside this adapter's coverage. Invalid lifecycle graphs produce incomplete results;
+they never establish a current fact or whole-library absence. No claim of complete
+remote parity or large-library retrieval performance is made.
 
 API basis: [GitHub repository contents](https://docs.github.com/en/rest/repos/contents)
 documents ref selection, content SHA checks and directory-size limits. Hosts must use

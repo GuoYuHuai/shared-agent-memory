@@ -1,6 +1,6 @@
 # Experimental candidate acceptance — 2026-10-28
 
-Version: 0.2.0-experimental. This is a reviewable release candidate, not a universal
+Version: 0.2.1-experimental. This is a reviewable release candidate, not a universal
 compatibility certification. The independent public repository is
 [GuoYuHuai/agent-knowledge](https://github.com/GuoYuHuai/agent-knowledge).
 Public history contains tool sources, documentation and fictional fixtures only.
@@ -83,7 +83,7 @@ does not replace runtime testing or establish compatibility beyond the evidence 
 Foreground generic/local and GitHub contracts are usable experimental paths. Claude,
 Doubao Desktop, WorkBuddy, desktop-host persistence, Windows installation,
 Linux desktop integration, two physical devices, native host scheduling, and real semantic-model curation need live
-validation. Remote canonical Markdown/candidate-resolution parity, distributed maintenance
+validation. Remote canonical Markdown/alias parity, distributed maintenance
 leases, automatic oversized-event splitting and schema migration remain explicit follow-up
 work. Weekly semantic knowledge review is a pending workflow, not an implemented autonomous
 success. No additional model service or subscription was provisioned.
@@ -145,3 +145,36 @@ corresponding commit.
 The English and Chinese READMEs expose the same setup, storage and support boundaries.
 The comparison in `docs/choosing.md` uses other projects' official documentation;
 no comparative performance, popularity or cost advantage is claimed.
+
+## 0.2.1 reliability checks
+
+Full local suite: **454 tests run, 453 passed, 1 Windows-specific platform skip**
+in 147.403 seconds. Node connector contracts also passed. Package checks cover
+97 explicitly listed source, documentation and fixture files, plus the manifest.
+
+The [reliability notes](reliability.md) link the upstream sources used to select
+reproducible checks. All new fixtures use fictional data in temporary directories.
+
+- Retrieval checks cover exact titles beyond the candidate window, short Chinese
+  excerpts, literal punctuation, aliases under a held workspace lock, read-only
+  SQLite, explicit fact identities and rejection of unrelated lexical siblings.
+- Capture tests inject index and publication-durability failures. Saved records
+  remain readable with their IDs; identical retries repair projections without
+  replacing the immutable event. The everyday CLI reports the partial outcome.
+- Shared Python hot/indexed and JavaScript fixtures check candidate acceptance,
+  rejection, future-effective and expired facts, same-identity conflicts, scope
+  isolation, correction chains and invalid lifecycle graphs. This verifies the
+  ledger contract, not complete remote Markdown retrieval or native host behavior.
+- Disposable Git repositories exercise incompatible schemas, different library
+  identities, missing or unsafe manifests, concurrent push changes and compatible
+  tool-version differences. Both copies survive a rejected sync.
+- An independent ephemeral source review disabled memories, user configuration
+  and instruction discovery. It identified the accepted-candidate conflict case
+  and overly broad sibling expansion. Both received fixes and regression cases.
+  The review executed no tests and does not extend the platform coverage.
+- Upgrade fixtures reject old lifecycle caches on read and rebuild them on the
+  next foreground lookup without changing the source ledger or data schema.
+
+The fixed 24-case retrieval evaluation and the temporary two-directory local demo
+also passed. The demo verifies a real local Git clone and correction readback with
+the cold layer absent; it does not establish physical-device or online freshness.
