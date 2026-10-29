@@ -7,12 +7,15 @@ Public history contains tool sources, documentation and fictional fixtures only.
 
 ## 0.2.3 everyday memory checks
 
-After the rebase-deadline repair, the macOS full suite ran **518 tests: 517 passed
-and 1 Windows-only skip** in 180.603 seconds. A subsequent bounded pipe-cleanup
-repair passed its **11 targeted tests: 10 passed and 1 Windows-only skip** in
-8.890 seconds. Node connector contracts and the two-directory local Git demo also
-passed. Final hosted results and any later full local run are recorded separately;
-earlier results below apply to their stated versions.
+The final macOS suite ran **520 tests: 518 passed and 2 Windows-only skips** in
+179.016 seconds. The [hosted run for code and tests at `b27d30c`](https://github.com/GuoYuHuai/shared-agent-memory/actions/runs/40821941877)
+passed on Ubuntu (520 run, 518 passed, 2 Windows-only skips, 105.262 seconds) and
+Windows (520 run across 287 core, 81 retrieval and 152 history tests; 519 passed
+and 1 POSIX-only skip). The Windows network Job Object and its assignment-failure
+gate were exercised there. Node connector contracts and the 106-file package
+check passed on both hosted platforms; the local two-directory Git demo also
+passed. Later acceptance-text and manifest updates do not change those scripts
+or tests. Earlier results below apply to their stated versions.
 
 - Saving or correcting a record attempts one configured private sync after local
   readback. Tests cover local-only mode, explicit offline mode, disabled sync,
