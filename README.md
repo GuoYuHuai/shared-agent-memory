@@ -28,7 +28,7 @@ Once connected, keep working normally:
 
 The agent should update its memory while completing the task. Next time, “Continue deploying Atlas” should lead it to the new port without asking you again. You can also say “remember this,” “this has changed,” or “don't save this.”
 
-When private sync is enabled, saves and corrections also attempt synchronization; offline changes stay local. Agents need access to the same folder or synchronized copies. A new device still needs an initial connection to your memory repository.
+When private sync is enabled, saves and corrections also attempt synchronization; offline changes stay local. Agents can use the same folder or synchronized copies. On a new device, give the agent the same private repository to connect to.
 
 ## Choose where to keep your knowledge
 
