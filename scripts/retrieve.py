@@ -29,7 +29,7 @@ def freshness_binding(root, config):
 
 
 def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
-             offline=False, sync_fn=None):
+             offline=False, sync_fn=None, fresh=False):
     config_path = root / 'config/kb.json'
     config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {}
     settings = config.get('retrieval', {})
@@ -44,8 +44,8 @@ def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
         state = {}
     verified_at = kb.parse_time(state.get('remote_verified_at'))
     now = kb.utc_now()
-    fresh = bool(verified_at and 0 <= (now - verified_at).total_seconds() <= maximum_age)
-    sync_status = 'offline' if offline else ('recently-verified' if fresh else 'not-verified')
+    cached_fresh = bool(verified_at and 0 <= (now - verified_at).total_seconds() <= maximum_age)
+    sync_status = 'offline' if offline else ('recently-verified' if cached_fresh else 'not-verified')
     sync_attempts = 0
     index_status = 'hot-only'
 
@@ -78,7 +78,7 @@ def retrieve(root, query, scope=None, kind=None, limit=12, include_values=False,
         return result
 
     report = query_local()
-    need_sync = not fresh or not report.get('current_count', report['count'])
+    need_sync = fresh or not cached_fresh or not report.get('current_count', report['count'])
     if need_sync and not offline:
         if (not config.get('hot_sync', {}).get('expected_repository')
                 or config.get('hot_sync', {}).get('enabled') is False):
@@ -126,6 +126,7 @@ def main():
     parser.add_argument('--limit', type=int, default=12)
     parser.add_argument('--include-values', action='store_true')
     parser.add_argument('--offline', action='store_true')
+    parser.add_argument('--fresh', action='store_true', help='Check the configured remote even when a recent snapshot is cached; offline takes precedence')
     args = parser.parse_args()
     try:
         result = retrieve(**vars(args))

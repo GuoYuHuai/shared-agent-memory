@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 TOOL = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOL / 'scripts'))
@@ -29,6 +30,91 @@ class EverydayCLI(unittest.TestCase):
 
     def init(self):
         return self.cli('init')
+
+    def configure_sync(self, enabled=True, repository='fictional/memory'):
+        path = self.root / 'config/kb.json'
+        config = json.loads(path.read_text())
+        config['hot_sync'].update(enabled=enabled, expected_repository=repository)
+        path.write_text(json.dumps(config))
+
+    def dispatch(self, *arguments):
+        return ak.dispatch(ak.parser().parse_args(['--root', str(self.root), *arguments]))
+
+    def test_save_shares_only_explicitly_enabled_bound_sync(self):
+        self.init()
+        for enabled, repository, expected in ((False, 'fictional/memory', False),
+                (True, None, False), ('true', 'fictional/memory', False),
+                (True, 'fictional/memory', True)):
+            with self.subTest(enabled=enabled, repository=repository):
+                self.configure_sync(enabled, repository)
+                with mock.patch.object(ak.sync_runner, 'run_sync', return_value={
+                        'ok':True, 'sync':{'ok':True, 'pushed':True}}) as sync:
+                    result = self.dispatch('remember', 'Fictional reusable fact', '--source', 'fictional:user')
+                self.assertTrue(result['saved'])
+                self.assertEqual(result['synced'], expected)
+                self.assertEqual(sync.call_count, int(expected))
+
+    def test_failed_sync_keeps_save_and_retry_uses_same_record(self):
+        self.init()
+        self.configure_sync()
+        args = ('remember', 'Fictional reusable fact', '--id', 'saved-offline', '--source', 'fictional:user')
+        for outcome in ({'ok':False, 'status':'network-deadline'}, {'ok':True, 'pending':True},
+                        {'ok':False, 'status':'sync-recovery-required', 'recovery_required':True},
+                        {'ok':True}, {'ok':True, 'sync':{'ok':False, 'pushed':True}}):
+            with self.subTest(outcome=outcome), mock.patch.object(ak.sync_runner, 'run_sync', return_value=outcome):
+                result = self.dispatch(*args)
+                self.assertFalse(result['ok'])
+                self.assertTrue(result['saved'])
+                self.assertTrue(result['readback'])
+                self.assertTrue(result['pending'])
+                self.assertFalse(result['synced'])
+                self.assertEqual(result['id'], 'saved-offline')
+                self.assertIn('Saved locally: saved-offline', ak.human(result))
+                if outcome.get('recovery_required'):
+                    self.assertTrue(result['recovery_required'])
+                    self.assertTrue(result['sync_recovery_required'])
+        self.assertEqual(len(list((self.root / 'ledger/by-id').glob('*.json'))), 1)
+        with mock.patch.object(ak.sync_runner, 'run_sync', return_value={
+                'ok':True, 'sync':{'ok':True, 'pushed':True}}):
+            repeated = self.dispatch(*args)
+        self.assertTrue(repeated['duplicate'])
+        self.assertTrue(repeated['synced'])
+
+    def test_offline_save_and_correction_do_not_start_sync(self):
+        self.init()
+        self.configure_sync()
+        with mock.patch.object(ak.sync_runner, 'run_sync') as sync:
+            saved = self.dispatch('remember', 'Fictional port 4310', '--source', 'fictional:user', '--offline')
+            corrected = self.dispatch('correct', saved['id'], 'Fictional port 4311', '--source', 'fictional:user', '--offline')
+        sync.assert_not_called()
+        for result in (saved, corrected):
+            self.assertTrue(result['ok'])
+            self.assertTrue(result['pending'])
+            self.assertEqual(result['sync']['status'], 'offline')
+
+    def test_correction_shares_and_keeps_the_local_pair_on_failure(self):
+        self.init()
+        saved = self.dispatch('remember', 'Fictional port 4310', '--source', 'fictional:user')
+        self.configure_sync()
+        with mock.patch.object(ak.sync_runner, 'run_sync', return_value={'ok':False, 'status':'sync-failed'}) as sync:
+            corrected = self.dispatch('correct', saved['id'], 'Fictional port 4311', '--source', 'fictional:user')
+        sync.assert_called_once_with(self.root)
+        self.assertFalse(corrected['ok'])
+        pair = json.loads((self.root / corrected['ledger']).read_text())
+        self.assertEqual(pair[0]['statement'], 'Fictional port 4311')
+        self.assertEqual(pair[1]['old_id'], saved['id'])
+
+    def test_actual_sync_unavailable_returns_nonzero_after_real_local_save(self):
+        self.init()
+        self.configure_sync()
+        # No origin exists: the real hot_sync child refuses before network I/O.
+        result = self.cli('remember', 'Fictional disconnected record', '--id', 'disconnected', '--source', 'fictional:user', ok=False)
+        self.assertTrue(result['saved'])
+        self.assertTrue(result['readback'])
+        self.assertTrue(result['pending'])
+        self.assertFalse(result['synced'])
+        found = self.cli('recall', 'disconnected', '--offline')
+        self.assertEqual(found['results'][0]['id'], 'disconnected')
 
     def test_new_folder_remember_recall_correction(self):
         self.init()

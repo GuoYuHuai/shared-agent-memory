@@ -13,8 +13,43 @@ import install
 import kb
 import retrieve
 import workspace_lock
+import sync_runner
 
 TOOL_ROOT = Path(__file__).resolve().parents[1]
+
+
+def share_saved(root, report, offline=False):
+    """Keep local durability independent of one optional foreground sync."""
+    report = dict(report, synced=False, sync_pending=False)
+    if not report.get('saved') or not report.get('readback') or report.get('ok') is False:
+        return report
+    try:
+        config = install.read(root / 'config/kb.json')
+        hot = config.get('hot_sync', {})
+        configured = hot.get('enabled') is True and bool(hot.get('expected_repository'))
+    except (OSError, ValueError, AttributeError):
+        report.update(ok=False, pending=True, sync_pending=True, sync={'ok':False, 'status':'configuration-unavailable'})
+        return report
+    if not configured:
+        report['sync'] = {'ok':True, 'status':'local-only', 'attempted':False}
+        return report
+    if offline:
+        report.update(pending=True, sync_pending=True, sync={'ok':True, 'status':'offline', 'attempted':False})
+        return report
+    outcome = sync_runner.run_sync(root)
+    remote = outcome.get('sync')
+    confirmed = (outcome.get('ok') is True and not outcome.get('pending')
+                 and not outcome.get('skipped') and isinstance(remote, dict)
+                 and remote.get('ok') is True and remote.get('pushed') is True
+                 and not remote.get('skipped'))
+    report.update(synced=confirmed, pending=not confirmed, sync_pending=not confirmed, sync=outcome)
+    if not confirmed:
+        report['ok'] = False
+        if outcome.get('recovery_required'):
+            report['recovery_required'] = True
+            report['sync_recovery_required'] = True
+        report['sync_recovery'] = ('The local record is saved. Check Git status and any reported conflict or unfinished operation before retrying sync; do not create another record.')
+    return report
 
 
 def installed_root(path):
@@ -82,14 +117,14 @@ def dispatch(args):
             tokens += ['--id', args.id]
         if args.value_file:
             tokens += ['--value-file', str(args.value_file)]
-        return dict(kb.run(kb.build_parser().parse_args(tokens)), action='remember', synced=False)
+        return share_saved(root, dict(kb.run(kb.build_parser().parse_args(tokens)), action='remember'), args.offline)
     if args.command == 'recall':
         return dict(retrieve.retrieve(root, args.query, scope=args.scope, limit=args.limit,
-                    include_values=args.include_values, offline=args.offline), action='recall')
+                    include_values=args.include_values, offline=args.offline, fresh=args.fresh), action='recall')
     if args.command == 'correct':
         import correction
-        return dict(correction.correct(root, args.old_id, args.statement, args.source,
-                    authority=args.authority, value_file=args.value_file), action='correct', synced=False)
+        return share_saved(root, dict(correction.correct(root, args.old_id, args.statement, args.source,
+                    authority=args.authority, value_file=args.value_file), action='correct'), args.offline)
     if args.command in ('connect', 'disconnect'):
         import instruction_link
         return getattr(instruction_link, args.command)(root, args.instructions)
@@ -128,18 +163,21 @@ def parser():
     remember.add_argument('--authority', default='user-stated', help='Use agent-inferred for unconfirmed inferences')
     remember.add_argument('--id', help='Stable record ID for safe retries')
     remember.add_argument('--value-file', type=Path, help='Read an exact value without placing it in command arguments')
+    remember.add_argument('--offline', action='store_true', help='Save locally without attempting configured sync')
     recall = commands.add_parser('recall', help='Find current knowledge and check the configured sync freshness')
     recall.add_argument('query')
     recall.add_argument('--scope')
     recall.add_argument('--limit', type=int, default=12)
     recall.add_argument('--include-values', action='store_true')
     recall.add_argument('--offline', action='store_true')
+    recall.add_argument('--fresh', action='store_true', help='Check the configured remote even when a recent snapshot exists')
     correct = commands.add_parser('correct', help='Replace an earlier fact while keeping its source history')
     correct.add_argument('old_id')
     correct.add_argument('statement')
     correct.add_argument('--source', required=True)
     correct.add_argument('--authority', choices=['user-stated', 'verified'], default='user-stated')
     correct.add_argument('--value-file', type=Path)
+    correct.add_argument('--offline', action='store_true', help='Save the correction locally without attempting configured sync')
     for name in ('connect', 'disconnect'):
         link = commands.add_parser(name, help=('Connect to' if name == 'connect' else 'Disconnect from') + ' an Agent instruction file')
         link.add_argument('--instructions', type=Path, required=True)
@@ -154,7 +192,7 @@ def parser():
 def human(report):
     if report.get('ok') is False:
         detail = report.get('reason') or report.get('error') or (report.get('sync') or {}).get('error') or (report.get('sync') or {}).get('status') or (report.get('index') or {}).get('status')
-        recovery = report.get('recovery')
+        recovery = report.get('recovery') or report.get('sync_recovery')
         if isinstance(recovery, dict):
             recovery = recovery.get('action') or recovery
         if report.get('saved'):
@@ -166,7 +204,10 @@ def human(report):
         return '\n'.join(str(v) for v in (opening, detail, recovery) if v)
     action = report.get('action')
     if action in ('remember', 'correct'):
-        return 'Saved locally: ' + str(report.get('id') or report.get('new_id')) + '\n' + str(report.get('message') or 'Use sync to share it when a private remote is connected.')
+        shared = ('Synchronized with your private repository.' if report.get('synced')
+                  else 'Remote sync is pending; your record is available locally.' if report.get('pending')
+                  else 'Available to connected agents using this folder.')
+        return 'Saved locally: ' + str(report.get('id') or report.get('new_id')) + '\n' + shared
     if action == 'recall':
         lines = ['Freshness: ' + report['freshness']['status']]
         for item in report.get('results', []):

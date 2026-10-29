@@ -67,6 +67,13 @@ Version 0.2.1 keeps data schema 1. Its next foreground lookup rebuilds outdated
 search and lifecycle indexes automatically from the original files. These are
 disposable caches; no knowledge migration or history import is required.
 
+Version 0.2.3 also keeps data schema 1. Re-run `connect` for each owned instruction
+file after updating the tool checkout so new sessions receive the proactive
+capture and fresh-retrieval rules. Existing user policies are retained.
+`remember` and `correct` now attempt synchronization when private sync is enabled;
+use `--offline` where the applicable policy forbids network use. No hook, service,
+history scan or scheduled task is installed by this upgrade.
+
 ## Stop scheduling or uninstall
 
 Disconnect instruction files with `ak.py --root ROOT disconnect --instructions FILE`

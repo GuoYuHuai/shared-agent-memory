@@ -14,6 +14,61 @@ import retrieve
 
 
 class FreshnessBindingTests(unittest.TestCase):
+    def test_new_session_refresh_finds_correction_even_with_cached_current_hit(self):
+        import correction
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'local'
+            install.install(root, 'fiction/knowledge', 'local')
+            kb.run(kb.build_parser().parse_args(['--root', str(root), 'capture', '--id', 'fixture',
+                '--kind', 'fact', '--scope', 'fiction', '--statement', 'preview port 4310',
+                '--source', 'fictional:user', '--authority', 'user-stated']))
+            retrieve.retrieve(root, 'preview port', sync_fn=lambda *a, **kw: {'ok': True})
+            other = Path(directory) / 'other-device'
+            shutil.copytree(root, other)
+            changed = correction.correct(other, 'fixture', 'preview port 4311', 'fictional:other-device')
+            def pull(*args, **kwargs):
+                self.assertFalse(kwargs['push'])
+                shutil.copyfile(other / changed['ledger'], root / changed['ledger'])
+                return {'ok': True, 'pulled': True}
+            callback = mock.Mock(side_effect=pull)
+            cached = retrieve.retrieve(root, 'preview port', sync_fn=callback)
+            self.assertEqual(cached['results'][0]['statement'], 'preview port 4310')
+            callback.assert_not_called()
+            current = retrieve.retrieve(root, 'preview port', fresh=True, sync_fn=callback)
+            self.assertEqual(current['results'][0]['statement'], 'preview port 4311')
+            self.assertEqual(current['freshness']['status'], 'verified')
+            callback.assert_called_once()
+
+    def test_fresh_lookup_never_overrides_offline_or_disabled_sync(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'local'
+            install.install(root, 'fiction/knowledge', 'local')
+            callback = mock.Mock(side_effect=AssertionError('network must stay disabled'))
+            offline = retrieve.retrieve(root, 'marker', fresh=True, offline=True, sync_fn=callback)
+            self.assertEqual(offline['freshness']['status'], 'offline')
+            config = root / 'config/kb.json'
+            settings = json.loads(config.read_text())
+            settings['hot_sync']['enabled'] = False
+            config.write_text(json.dumps(settings))
+            disabled = retrieve.retrieve(root, 'marker', fresh=True, sync_fn=callback)
+            self.assertEqual(disabled['freshness']['sync_attempts'], 0)
+            self.assertEqual(disabled['freshness']['status'], 'not-configured')
+            callback.assert_not_called()
+
+    def test_failed_fresh_lookup_keeps_snapshot_without_claiming_remote_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'local'
+            install.install(root, 'fiction/knowledge', 'local')
+            kb.run(kb.build_parser().parse_args(['--root', str(root), 'capture', '--id', 'fixture',
+                '--kind', 'fact', '--scope', 'fiction', '--statement', 'preview port 4310',
+                '--source', 'fictional:user', '--authority', 'user-stated']))
+            retrieve.retrieve(root, 'preview port', sync_fn=lambda *a, **kw: {'ok': True})
+            callback = mock.Mock(return_value={'ok': False, 'status': 'network-unavailable'})
+            result = retrieve.retrieve(root, 'preview port', fresh=True, sync_fn=callback)
+            self.assertEqual(result['results'][0]['statement'], 'preview port 4310')
+            self.assertEqual(result['freshness']['status'], 'failed:network-unavailable')
+            callback.assert_called_once()
+
     def test_copied_changed_or_unbound_receipt_requires_verification(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'first'

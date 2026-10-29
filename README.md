@@ -2,15 +2,17 @@
 
 # Shared Agent Memory
 
-Shared memory across AI agents and devices. Keep project settings, decisions and preferences in files your agents can read. When you switch tools or computers, the next agent can look up what you have already explained.
+Work with your agent as usual. Let it remember what will matter next time, so a new chat, tool or computer means less explaining from scratch.
 
-For example:
+Things you mention during work can become shared memory:
 
 - “The Atlas preview server runs on port 4310.”
 - “Keep Atlas progress updates to three short paragraphs.”
 - “We chose local storage so the app works offline.”
 
-Each record keeps its source. When something changes, a correction preserves the earlier record and tells the next agent which information to use.
+Your agent handles saving, finding and updating these details. You do not need to organize notes or manage records. Sources and earlier versions stay behind the scenes so the agent can tell what still applies.
+
+The current integration uses persistent host instructions. Automatic behavior depends on the agent loading and following them, so setup includes a real fresh-session check. See [compatibility](docs/compatibility.md) for the tested scope.
 
 ## Get started
 
@@ -18,13 +20,15 @@ Give your agent this repository link and ask it to set things up:
 
 > Help me set up Shared Agent Memory: https://github.com/GuoYuHuai/shared-agent-memory. Read BOOTSTRAP.md and reuse my existing knowledge folder if I have one.
 
-[BOOTSTRAP.md](BOOTSTRAP.md) gives the agent the setup steps: find an existing installation, check the tools it can use, connect a knowledge folder, then test saving, reading and correcting a record.
+[BOOTSTRAP.md](BOOTSTRAP.md) guides the agent through finding existing memory, checking tools and permissions, completing the setup it can handle, and testing whether memory is saved and found again. You step in for sign-in, authorization or a necessary choice it cannot resolve.
 
-Once connected, the instructions tell your agent to look up relevant knowledge before working and save useful changes as it goes. You can also ask directly:
+Once connected, keep working normally:
 
-> Remember this for Atlas: use a short table for progress updates.
+> Atlas now uses preview port 4311. Continue writing the deployment notes.
 
-Later, another connected agent can retrieve that preference with its source. Agents need access to the same folder or a synchronized copy to share knowledge.
+The agent should update its memory while completing the task. Next time, “Continue deploying Atlas” should lead it to the new port without asking you again. You can also say “remember this,” “this has changed,” or “don't save this.”
+
+When private sync is enabled, saves and corrections also attempt synchronization; offline changes stay local. Agents need access to the same folder or synchronized copies. A new device still needs an initial connection to your memory repository.
 
 ## Choose where to keep your knowledge
 
@@ -62,9 +66,9 @@ The local tools are tested on macOS and on Linux and Windows CI runners. The Git
 
 ## Is this a good fit?
 
-If a short Markdown file already handles your preferences, keep using it. Shared Agent Memory becomes more useful when you need several agents or devices to agree on current settings, trace a decision to its source, or stop using an outdated fact after a correction.
+If a short Markdown file already handles your preferences, keep using it. Shared Agent Memory aims to reduce the context you repeat across chats, tools and devices: your existing agents maintain the same memory, and the next agent can find the current settings when something changes.
 
-It uses text search and explicit corrections. If you want semantic search, a knowledge graph or a ready-made MCP service, see [other approaches](docs/choosing.md).
+It uses lightweight files and text search, without a separate model or database service. If you want ready-made host hooks, semantic search or an MCP service, see [other approaches](docs/choosing.md). Choose what actually reduces repeated explanations in your environment.
 
 ## More information
 

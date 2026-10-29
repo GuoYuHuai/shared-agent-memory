@@ -293,6 +293,13 @@ def execute(
             "retryable": True,
             "skipped": "storage-operation-running",
         }
+    except subprocess.TimeoutExpired:
+        # Network commands are separately contained; local commit/rebase/index
+        # phases are allowed to finish. Do not echo command arguments or output.
+        result = {
+            "ok": False, "action": "hot-sync", "status": "pending",
+            "error": "network-deadline", "pending": True,
+        }
     except Exception as error:
         result = {
             "ok": False,

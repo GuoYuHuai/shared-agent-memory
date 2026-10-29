@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "tool_version": "0.2.2-experimental",
+  "tool_version": "0.2.3-experimental",
   "knowledge_base_id": "public-tool-template",
   "canonical_zones": {
     "profile": "profile",

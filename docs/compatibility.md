@@ -1,6 +1,6 @@
 # Compatibility evidence
 
-Candidate date: 2026-10-28. This matrix separates implementation, contract tests and live host observations. Final commands, versions and pass/fail totals are in [the acceptance report](acceptance.md). Absence of a host environment is a pending validation, not an unsupported brand decision.
+Candidate date: 2026-10-29. This matrix separates implementation, contract tests and live host observations. Final commands, versions and pass/fail totals are in [the acceptance report](acceptance.md). Absence of a host environment is a pending validation, not an unsupported brand decision.
 
 | Environment/path | Implemented contract | Evidence boundary |
 | --- | --- | --- |
@@ -8,13 +8,13 @@ Candidate date: 2026-10-28. This matrix separates implementation, contract tests
 | Generic GitHub tools, no local CLI | Append/readback, consistent retrieval and ledger discovery | Node connector contracts passed; three fictional events and an index were written/read through live GitHub tools, and an independent Agent discovered the correction from the index on an isolated private fixture branch. This is not full native-host installation certification |
 | Read-only private repository | Source retrieval and unsaved proposal status | Limited by actual listing/read coverage |
 | Unknown Agent name | Capability-based route | No product-name rejection; not a native integration certification |
-| Codex | Shared Skills/rules and reference runner | A new ephemeral Codex CLI session on macOS discovered the connected project instructions, read the fictional ledger and returned the corrected port with its ID and source. This does not verify desktop lifecycle hooks or recurring tasks |
-| Claude | Shared protocol and Skill/rule carrier; inherited history parser | Native installation and fresh-session behavior pending live validation |
+| Codex | Shared Skills/rules and reference runner | Four independent Codex CLI sessions on macOS automatically captured an ordinary work request, recalled it without a reminder, applied a conversational correction and recalled the new value while retaining an unrelated preference. This required authorized write access to the fictional memory directory, including its Git metadata. It does not verify desktop lifecycle hooks or recurring tasks |
+| Claude | Shared protocol and Skill/rule carrier; inherited history parser | Claude Code 2.1.163 was launched with the connected CLAUDE.md; the service returned 403 before any model tokens or tool calls. Fresh-session continuity remains unverified for this account; no cross-Agent success is claimed |
 | Doubao Desktop | Generic protocol and capability mapping | Product/version/tool-specific validation pending |
 | WorkBuddy | Generic protocol and capability mapping | Product/version/tool-specific validation pending |
 | Future Agent | Same capability and adapter contract | Contributor must supply real evidence |
-| Windows | Local installation, Python contracts, native file locks and inherited parsing behavior | 501 Python tests, Node connector contracts and package checks passed on a GitHub-hosted Windows runner. Native Agent integration, scheduling and physical device transfer remain pending |
-| Linux | Local installation and Python contracts | 501 Python tests ran on GitHub-hosted Ubuntu: 500 passed and 1 Windows-only skip. Node and package checks passed; desktop-host integration and native scheduling remain pending |
+| Windows | Local installation, Python contracts, native file locks and inherited parsing behavior | Version 0.2.2 passed 501 Python tests, Node connector contracts and package checks on a GitHub-hosted Windows runner. See the acceptance report for 0.2.3 results. Native Agent integration, scheduling and physical device transfer remain pending |
+| Linux | Local installation and Python contracts | Version 0.2.2 ran 501 Python tests on GitHub-hosted Ubuntu: 500 passed and 1 Windows-only skip. See the acceptance report for 0.2.3 results. Desktop-host integration and native scheduling remain pending |
 | macOS launchd deterministic background health | Register, query, execute and disable a managed one-shot task | A real background health run succeeded; test registration was removed afterward. This does not prove a background model or an ongoing installed schedule |
 | Removable directory | Mount and volume binding, portable source references and device-local receipts | Directory/device fixtures and a read-only probe of an actual external mount passed; physical disk transfer between computers remains unverified |
 | Two physical devices | Shared Git format and sync contract | One machine with two fixture directories is not this evidence |

@@ -1,9 +1,81 @@
-# Experimental candidate acceptance — 2026-10-28
+# Experimental candidate acceptance — 2026-10-29
 
-Version: 0.2.2-experimental. This is a reviewable release candidate, not a universal
+Version: 0.2.3-experimental. This is a reviewable release candidate, not a universal
 compatibility certification. The independent public repository is
 [GuoYuHuai/shared-agent-memory](https://github.com/GuoYuHuai/shared-agent-memory).
 Public history contains tool sources, documentation and fictional fixtures only.
+
+## 0.2.3 everyday memory checks
+
+After the rebase-deadline repair, the macOS full suite ran **518 tests: 517 passed
+and 1 Windows-only skip** in 180.603 seconds. A subsequent bounded pipe-cleanup
+repair passed its **11 targeted tests: 10 passed and 1 Windows-only skip** in
+8.890 seconds. Node connector contracts and the two-directory local Git demo also
+passed. Final hosted results and any later full local run are recorded separately;
+earlier results below apply to their stated versions.
+
+- Saving or correcting a record attempts one configured private sync after local
+  readback. Tests cover local-only mode, explicit offline mode, disabled sync,
+  incomplete success reports, failed attempts and duplicate-safe recovery.
+- The foreground sync attempt limits remote waiting without forcibly interrupting
+  local Git mutation or recovery. Its 30-second deadline does not cap total
+  operation time. The first implementation killed the entire worker on timeout;
+  an independent review identified that this could interrupt rebase cleanup,
+  so that implementation was not released.
+- Real Git fixtures let a delayed rebase exceed the remote deadline, then verify
+  successful completion or conflict abort, retained facts, a clean checkout and
+  absent rebase/index locks. The next remote request is deferred. A second review
+  found an unbounded pipe drain from a detached transport helper. Cleanup now
+  bounds that drain; its POSIX fixture explicitly cleans the escaped helper without
+  claiming the production process group can stop detached host services. Windows
+  job-assignment failure is tested separately to ensure the launch gate stays shut.
+- `recall --fresh` checks the configured remote despite a current cached hit.
+  A fixture introduces a correction from another local copy during the pull and
+  verifies that the current result changes. Offline and disabled-sync settings
+  still prevent network access; a failed refresh preserves the local snapshot
+  with an explicit failed-freshness status.
+- Generated instructions now trigger recall before context-dependent work and
+  capture during work and before the final reply. Independent facts are recorded
+  separately, and corrections must retain unaffected details. This is instruction
+  integration, not a newly implemented native lifecycle hook.
+
+The [continuity trial](continuity.md) checks ordinary work without a save reminder,
+then independent sessions without the answer or a retrieval reminder. Native
+observations are recorded separately from the deterministic contracts.
+
+### Native session observations
+
+On macOS 27.0.1, Codex CLI 0.165.0-alpha.1.2 completed four independent ephemeral
+sessions. Built-in memory was disabled; a temporary profile contained authentication
+only, and the project had answer-free generated instructions. The CLI's default
+model was used; its identity was not exposed in the captured JSON stream.
+
+| Session | Ordinary user input | Observed behavior |
+| --- | --- | --- |
+| First task | Prepare the fictional Lantern page, use port 5837 and three-sentence progress updates; create a title-only page | Ran recall, saved an active user-stated record without a save request, and read it back |
+| New session | Ask which port Lantern uses and how to report progress; no value or memory reminder | Ran `recall --fresh`, checked project/global context and answered 5837 plus the three-sentence preference |
+| Change during work | Port is now 5841 and the old port is retired; describe the next page check | Found the current ID, applied `correct`, retained the unaffected preference and verified the result |
+| Another new session | Repeat the answer-free port/progress question | Ran recall and answered 5841 plus the unchanged preference |
+
+The title-only page was removed before readback, leaving only instruction files;
+the answer was not available in a deployment file or prior transcript. The original
+record, replacement and supersession remained intact. The first session loaded an
+earlier instruction block and bundled both facts; later sessions loaded the updated
+rule that preserves unaffected details when correcting such a record. Temporary
+files, authentication copies and test processes were removed afterward.
+
+An initial workspace-write trial also attempted capture autonomously, but the host
+denied a write beneath the memory directory's `.git` metadata. That was a failed
+save, not a successful integration. The successful trial used explicitly authorized
+full access in the isolated fictional environment. A real installation must verify
+its own supported permission scope rather than assuming `--add-dir` is sufficient.
+
+Claude Code 2.1.163 also received an independent question in this fixture, but its
+service returned **403 Request not allowed** before model or tool execution. It is
+still pending live validation; authentication detection alone did not establish
+usable access. This trial establishes neither cross-Agent success, physical-device
+handoff, remote synchronization nor desktop lifecycle hooks. Four successful Codex
+sessions are bounded observations, not a measured reliability rate.
 
 ## 0.2.2 portability and transport checks
 

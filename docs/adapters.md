@@ -11,6 +11,64 @@ without importing their conversation history. Adding a history parser also needs
 an explicit source-schema migration and the evidence listed below; changing the
 SQL source allowlist alone is insufficient.
 
+## Everyday work
+
+An adapter should help the Agent remember during normal work. Users should not
+need to learn record states or ask for a save after every useful exchange.
+
+| Trigger | Expected behavior |
+| --- | --- |
+| A new session starts a task that needs prior context | Find the configured knowledge root, read its policy, and retrieve relevant context before asking the user to repeat it. Use `ak.py recall --fresh` for the first relevant query in a new session so a recent local freshness receipt does not hide another device's updates. |
+| Work produces a reusable fact, preference or decision | Save it with its source and scope under the user's existing policy. Do this when the fact becomes clear or before completing the task; do not wait for a scheduled job or ask for routine confirmation. |
+| The user changes an earlier fact | Find the earlier record and use `correct` to preserve the relationship. Ask only when the intended replacement is genuinely ambiguous and affects the work. |
+| A save finishes | Verify the local result. `remember` and `correct` attempt bounded private sync when configured; if it remains pending, keep the saved record and let the next opportunity retry. Do not save a duplicate to retry sync. |
+
+Local-only use remains a complete path. An unavailable remote must not erase a
+local save or prevent unrelated work. Report an actionable problem briefly;
+routine successful memory operations do not need a separate user checklist.
+
+## Instructions and native hooks
+
+The current connection installs persistent instructions. Those instructions ask
+the Agent to perform the steps above; the Agent still decides when to call a tool.
+This project does not yet ship native lifecycle hooks.
+
+A native adapter may use documented session-start, prompt, task-completion or
+equivalent events. Record which events the installed host version actually exposes
+and which can deliver context to the model. A visible status message is not proof
+that the model received it. If the host has no hooks, use its persistent instruction
+or Skill surface and test that path instead.
+
+Keep native adapters small: call the shared commands, respect the existing policy,
+and leave unrelated host settings intact. Use short timeouts and idempotent retries;
+avoid recursive capture of memory queries or the adapter's own output. A hook
+payload is evidence, not a policy change or proof that an observation is true.
+Do not make a separate model, full transcript collection, scheduler or resident
+service a prerequisite for the ordinary instruction-based path.
+
+## Proving a connection works
+
+Use a separate fictional project and a disposable knowledge directory:
+
+1. In one session, ask for ordinary work that introduces a useful fact, without
+   saying “remember,” naming a memory command, or asking for a sync. Confirm that
+   the Agent saved it with the correct source.
+2. Give an ordinary correction and continue working. Confirm that it replaces the
+   current value while the earlier record stays traceable.
+3. Start an independent session with no inherited conversation. Ask it to continue
+   the task without supplying the answer or a reminder to search. Inspect the tool
+   trace and outcome: it must discover the connection, retrieve and use the current
+   fact. Reading the answer from a project file alone does not prove memory recall.
+4. Repeat with another host or device when that is the claimed support scope. Use
+   its actual configured route; two directories on one computer prove only that
+   local replica workflow.
+
+Record host/version, OS, instruction or hook scope, date and concise evidence for
+capture, correction, retrieval and sync separately. Keep configured, loaded and
+observed-working states distinct. If something fails, diagnose the missing tool,
+instruction scope, permission or stale copy instead of handing the user a memory
+management procedure. Clean up the test connection and fictional data afterward.
+
 ## Foreground/model proposal runner
 
 Prepare an immutable source-linked batch on the local host:

@@ -25,6 +25,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import file_lock
+import sync_runner
 
 
 TOOL_ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +74,9 @@ def git(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        timeout=timeout,
+        # During foreground sync a soft network deadline must never kill a
+        # local rebase/abort or leave the working tree midway through checkout.
+        timeout=None if os.environ.get(sync_runner.DEADLINE_ENV) else timeout,
         check=False,
         env=git_environment(),
         # No controlling terminal for an SSH password/host-key prompt. Keep
@@ -200,6 +203,9 @@ def network_git(arguments: List[str], remote: str, root: Path) -> subprocess.Com
     status = configured_origin_status(remote, root)
     if not status["ok"]:
         raise SyncError(str(status["status"]))
+    if os.environ.get(sync_runner.DEADLINE_ENV):
+        return sync_runner.run_network(["git", *arguments], timeout=180,
+                                       cwd=str(root), env=git_environment())
     return git(arguments, root=root)
 
 
@@ -376,18 +382,16 @@ def repository_privacy_status(
 ) -> Dict[str, Any]:
     effective_policy = dict(policy or sync_policy(root))
     arguments = anonymous_repository_probe_arguments(effective_policy)
+    def probe(command, timeout, environment):
+        if os.environ.get(sync_runner.DEADLINE_ENV):
+            return sync_runner.run_network(command, timeout,
+                cwd=os.path.abspath(os.sep), env=environment)
+        return subprocess.run(command, cwd=os.path.abspath(os.sep),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            timeout=timeout, check=False, env=environment)
     try:
-        result = subprocess.run(
-            arguments,
-            # curl --disable ignores user config, and no response body is read.
-            cwd=os.path.abspath(os.sep),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=35,
-            check=False,
-            env=os.environ.copy(),
-        )
+        # curl --disable ignores user config, and no response body is read.
+        result = probe(arguments, 35, os.environ.copy())
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         privacy = {
             "ok": False,
@@ -401,16 +405,8 @@ def repository_privacy_status(
         return privacy
     for _attempt in range(3):
         try:
-            fallback = subprocess.run(
-                anonymous_git_probe_arguments(effective_policy),
-                cwd=os.path.abspath(os.sep),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=45,
-                check=False,
-                env=anonymous_git_probe_environment(),
-            )
+            fallback = probe(anonymous_git_probe_arguments(effective_policy), 45,
+                             anonymous_git_probe_environment())
         except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
             continue
         fallback_privacy = classify_anonymous_git_probe(fallback)

@@ -8,7 +8,7 @@ Ask your Agent:
 
 > Connect this local knowledge directory to my existing private GitHub repository.
 > Preserve its facts and settings, verify the repository and history, and tell me
-> whether it is ready for the first sync.
+> enable sharing after saves, and verify the first sync.
 
 The optional connection step requires Python, Git, and an authenticated
 [GitHub CLI](https://cli.github.com/). The CLI must be able to read the repository's
@@ -51,8 +51,12 @@ unrelated staged changes are preserved. The receipt records the metadata source,
 check time and observed history. It does not claim that another device has read
 the knowledge or that any background task has been installed.
 
-The next sync is a separate action and may upload committed knowledge. Its
-reference entrypoint is:
+The connection itself does not upload knowledge. With `hot_sync.enabled=true`
+and the expected repository configured, subsequent `remember` and `correct`
+commands attempt synchronization after saving. Your agent should enable this
+only within your authorized sharing scope. Use `--offline` to save without network
+access for a particular task; turn off `hot_sync.enabled` to suspend sharing.
+An explicit sync can also send already saved knowledge:
 
 ```sh
 python3 scripts/ak.py --root "/path/to/my-knowledge" sync
@@ -60,6 +64,18 @@ python3 scripts/ak.py --root "/path/to/my-knowledge" sync
 
 In PowerShell, use `py -3 .\scripts\ak.py --root "C:\path\to\my-knowledge" sync`
 with the actual path. No model or scheduler is required.
+
+The automatic post-save attempt uses a 30-second deadline for remote requests.
+Local writes, rebases and recovery are allowed to finish even if that deadline
+passes; the next remote request is deferred. This is not a hard limit on the
+total operation time. Local records survive
+an offline, busy or failed sync; its result remains pending until a later successful
+sync. Your agent handles that retry with the saved records, rather than asking you
+to submit them again. An interrupted remote request may still require inspecting
+Git's reported state before retrying; never delete a lock or discard changes
+without establishing ownership. This does not create a background retry service. `recall --fresh`
+checks for new shared information at the start of a session; a pull-only lookup
+does not upload pending local writes.
 
 Sync checks the committed data schema and knowledge-library identity before
 changing the working copy or pushing. An unknown schema, missing manifest or
